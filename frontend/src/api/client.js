@@ -29,7 +29,7 @@ export const api = {
     apiClient.get('/stock/info', { params: { ticker, market } }),
 
   getHistoricalData: (ticker, period = '3mo', interval = '1d', market = 'SE') =>
-    apiClient.get('/stock/historical', { params: { ticker, period, interval, market } }),
+    apiClient.get('/stock/historical', { params: { ticker, market, period, interval } }),
 
   // AI Analysis
   analyzeStock: (ticker, market = 'SE') =>

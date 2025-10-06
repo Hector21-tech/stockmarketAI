@@ -39,6 +39,7 @@ export default function StockDetailScreen({ route, navigation }) {
   const [stockInfo, setStockInfo] = useState(null);
   const [currentPrice, setCurrentPrice] = useState(null);
   const [period, setPeriod] = useState('3mo');
+  const [interval, setInterval] = useState('1d');
   const [chartType, setChartType] = useState('candle'); // 'line' or 'candle'
   const [showRSI, setShowRSI] = useState(true);
   const [showMACD, setShowMACD] = useState(false);
@@ -48,6 +49,8 @@ export default function StockDetailScreen({ route, navigation }) {
   const [showBB, setShowBB] = useState(false);
 
   const periods = [
+    { label: '1D', value: '1d' },
+    { label: '5D', value: '5d' },
     { label: '1M', value: '1mo' },
     { label: '3M', value: '3mo' },
     { label: '6M', value: '6mo' },
@@ -55,15 +58,42 @@ export default function StockDetailScreen({ route, navigation }) {
     { label: 'MAX', value: 'max' },
   ];
 
+  const intervals = [
+    { label: '1H', value: '1h', availableFor: ['1d', '5d'] },
+    { label: '4H', value: '4h', availableFor: ['1d', '5d', '1mo'] },
+    { label: 'Daily', value: '1d', availableFor: ['1mo', '3mo', '6mo', '1y', 'max'] },
+    { label: 'Weekly', value: '1wk', availableFor: ['6mo', '1y', 'max'] },
+  ];
+
+  // Filter intervals based on selected period
+  const availableIntervals = intervals.filter(int =>
+    int.availableFor.includes(period)
+  );
+
   useEffect(() => {
     loadStockData();
-  }, [ticker, period]);
+  }, [ticker, period, interval]);
+
+  // Auto-adjust interval when period changes
+  useEffect(() => {
+    const validIntervals = intervals.filter(int => int.availableFor.includes(period));
+    if (!validIntervals.find(int => int.value === interval)) {
+      // Set default interval for the period
+      if (period === '1d' || period === '5d') {
+        setInterval('1h');
+      } else if (period === '6mo' || period === '1y' || period === 'max') {
+        setInterval('1d');
+      } else {
+        setInterval('1d');
+      }
+    }
+  }, [period]);
 
   const loadStockData = async () => {
     setLoading(true);
     try {
       // Load historical data for chart
-      const histResponse = await api.getHistoricalData(ticker, period, '1d', market);
+      const histResponse = await api.getHistoricalData(ticker, period, interval, market);
       const data = histResponse.data.data || [];
 
       // Transform data for line chart
@@ -314,6 +344,49 @@ export default function StockDetailScreen({ route, navigation }) {
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* Interval Selector */}
+      {availableIntervals.length > 1 && (
+        <View style={[styles.intervalSelector, { paddingHorizontal: theme.spacing.base, marginTop: theme.spacing.xs }]}>
+          <Text style={[styles.intervalLabel, { color: theme.colors.text.secondary }]}>
+            Interval:
+          </Text>
+          {availableIntervals.map((int) => (
+            <TouchableOpacity
+              key={int.value}
+              onPress={() => setInterval(int.value)}
+              style={[
+                styles.intervalButton,
+                {
+                  backgroundColor:
+                    interval === int.value
+                      ? theme.colors.alpha(theme.colors.bullish, 0.2)
+                      : 'transparent',
+                  borderColor:
+                    interval === int.value
+                      ? theme.colors.bullish
+                      : theme.colors.border.primary,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.intervalText,
+                  {
+                    color:
+                      interval === int.value
+                        ? theme.colors.bullish
+                        : theme.colors.text.secondary,
+                    fontWeight: interval === int.value ? '600' : '400',
+                  },
+                ]}
+              >
+                {int.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       {/* Indicator Toggles */}
       <View style={[styles.indicatorToggles, { paddingHorizontal: theme.spacing.base, marginTop: theme.spacing.sm }]}>
@@ -793,6 +866,28 @@ const styles = StyleSheet.create({
   },
   periodText: {
     fontSize: 12,
+    letterSpacing: 0.5,
+  },
+  intervalSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  intervalLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginRight: 4,
+  },
+  intervalButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  intervalText: {
+    fontSize: 10,
     letterSpacing: 0.5,
   },
   volumeTitle: {
