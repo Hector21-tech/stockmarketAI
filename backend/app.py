@@ -97,6 +97,8 @@ def get_historical_data():
     # Calculate technical indicators
     rsi = analyzer.calculate_rsi(df)
     macd_line, signal_line, histogram = analyzer.calculate_macd(df)
+    ema_20 = analyzer.calculate_ema(df, 20)
+    sma_50 = analyzer.calculate_sma(df, 50)
 
     # Convert DataFrame to JSON-friendly format
     data = []
@@ -123,6 +125,13 @@ def get_historical_data():
                 'signal': float(signal_line.iloc[idx]) if not pd.isna(signal_line.iloc[idx]) else None,
                 'histogram': float(histogram.iloc[idx]) if not pd.isna(histogram.iloc[idx]) else None,
             }
+
+        # Add moving averages
+        if not pd.isna(ema_20.iloc[idx]):
+            data_point['ema20'] = float(ema_20.iloc[idx])
+
+        if not pd.isna(sma_50.iloc[idx]):
+            data_point['sma50'] = float(sma_50.iloc[idx])
 
         data.append(data_point)
 

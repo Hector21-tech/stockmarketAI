@@ -12,7 +12,7 @@
 
 ```
 Foundation:     ██████████ 100% ✅
-Charts & Data:  ██████░░░░  60% 🟡
+Charts & Data:  ███████░░░  70% 🟡
 Marketmate:     ░░░░░░░░░░   0%
 AI & Analytics: ░░░░░░░░░░   0%
 Social:         ░░░░░░░░░░   0%
@@ -91,7 +91,7 @@ Social:         ░░░░░░░░░░   0%
 - [x] RSI overlay
 - [x] MACD overlay
 - [ ] Stochastic overlay
-- [ ] Moving Averages (EMA20, SMA50)
+- [x] Moving Averages (EMA20, SMA50)
 - [ ] Bollinger Bands
 - [x] Volume indicator
 - [x] Toggle indicators on/off
@@ -393,6 +393,9 @@ Social:         ░░░░░░░░░░   0%
 - ✅ Period selector (1M, 3M, 6M, 1Y, MAX)
 - ✅ Chart type toggle (Candles/Line)
 - ✅ Backend API utökad med technical indicators
+- ✅ Moving Averages (EMA20, SMA50) implementerade
+- ✅ MA overlay lines på chart med toggle controls
+- ✅ MA legend med current values
 
 ---
 

@@ -30,12 +30,16 @@ export default function StockDetailScreen({ route, navigation }) {
   const [volumeData, setVolumeData] = useState([]);
   const [rsiData, setRsiData] = useState([]);
   const [macdData, setMacdData] = useState([]);
+  const [ema20Data, setEma20Data] = useState([]);
+  const [sma50Data, setSma50Data] = useState([]);
   const [stockInfo, setStockInfo] = useState(null);
   const [currentPrice, setCurrentPrice] = useState(null);
   const [period, setPeriod] = useState('3mo');
   const [chartType, setChartType] = useState('candle'); // 'line' or 'candle'
   const [showRSI, setShowRSI] = useState(true);
   const [showMACD, setShowMACD] = useState(false);
+  const [showEMA20, setShowEMA20] = useState(true);
+  const [showSMA50, setShowSMA50] = useState(true);
 
   const periods = [
     { label: '1M', value: '1mo' },
@@ -99,6 +103,24 @@ export default function StockDetailScreen({ route, navigation }) {
           histogram: item.macd.histogram,
         }));
       setMacdData(macdData);
+
+      // Transform data for EMA20
+      const ema20Data = data
+        .filter(item => item.ema20 !== undefined)
+        .map(item => ({
+          timestamp: item.timestamp,
+          value: item.ema20,
+        }));
+      setEma20Data(ema20Data);
+
+      // Transform data for SMA50
+      const sma50Data = data
+        .filter(item => item.sma50 !== undefined)
+        .map(item => ({
+          timestamp: item.timestamp,
+          value: item.sma50,
+        }));
+      setSma50Data(sma50Data);
 
       // Get current price (last close)
       if (data.length > 0) {
@@ -258,6 +280,58 @@ export default function StockDetailScreen({ route, navigation }) {
           Indicators:
         </Text>
         <TouchableOpacity
+          onPress={() => setShowEMA20(!showEMA20)}
+          style={[
+            styles.indicatorToggle,
+            {
+              backgroundColor: showEMA20
+                ? theme.colors.alpha(theme.colors.bullish, 0.2)
+                : 'transparent',
+              borderColor: showEMA20
+                ? theme.colors.bullish
+                : theme.colors.border.primary,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.indicatorToggleText,
+              {
+                color: showEMA20 ? theme.colors.bullish : theme.colors.text.secondary,
+                fontWeight: showEMA20 ? '600' : '400',
+              },
+            ]}
+          >
+            EMA20
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setShowSMA50(!showSMA50)}
+          style={[
+            styles.indicatorToggle,
+            {
+              backgroundColor: showSMA50
+                ? theme.colors.alpha(theme.colors.warning, 0.2)
+                : 'transparent',
+              borderColor: showSMA50
+                ? theme.colors.warning
+                : theme.colors.border.primary,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.indicatorToggleText,
+              {
+                color: showSMA50 ? theme.colors.warning : theme.colors.text.secondary,
+                fontWeight: showSMA50 ? '600' : '400',
+              },
+            ]}
+          >
+            SMA50
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
           onPress={() => setShowRSI(!showRSI)}
           style={[
             styles.indicatorToggle,
@@ -313,6 +387,27 @@ export default function StockDetailScreen({ route, navigation }) {
 
       {/* Chart */}
       <View style={[styles.chartContainer, { marginTop: theme.spacing.md }]}>
+        {/* MA Legend */}
+        {(showEMA20 || showSMA50) && (
+          <View style={[styles.maLegend, { paddingHorizontal: theme.spacing.base, marginBottom: theme.spacing.xs }]}>
+            {showEMA20 && ema20Data.length > 0 && (
+              <View style={styles.maLegendItem}>
+                <View style={[styles.maLegendLine, { backgroundColor: theme.colors.bullish }]} />
+                <Text style={[styles.maLegendText, { color: theme.colors.text.secondary }]}>
+                  EMA20: {ema20Data[ema20Data.length - 1].value.toFixed(2)}
+                </Text>
+              </View>
+            )}
+            {showSMA50 && sma50Data.length > 0 && (
+              <View style={styles.maLegendItem}>
+                <View style={[styles.maLegendLine, { backgroundColor: theme.colors.warning }]} />
+                <Text style={[styles.maLegendText, { color: theme.colors.text.secondary }]}>
+                  SMA50: {sma50Data[sma50Data.length - 1].value.toFixed(2)}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
         {chartType === 'candle' && candleData.length > 0 ? (
           <CandlestickChart.Provider data={candleData}>
             <CandlestickChart width={width} height={300}>
@@ -339,6 +434,26 @@ export default function StockDetailScreen({ route, navigation }) {
             <Text style={[styles.emptyText, { color: theme.colors.text.tertiary }]}>
               No chart data available
             </Text>
+          </View>
+        )}
+
+        {/* Moving Average Overlays */}
+        {showEMA20 && ema20Data.length > 0 && (
+          <View style={{ position: 'absolute', top: 0 }}>
+            <LineChart.Provider data={ema20Data}>
+              <LineChart width={width} height={300}>
+                <LineChart.Path color={theme.colors.bullish} width={1.5} />
+              </LineChart>
+            </LineChart.Provider>
+          </View>
+        )}
+        {showSMA50 && sma50Data.length > 0 && (
+          <View style={{ position: 'absolute', top: 0 }}>
+            <LineChart.Provider data={sma50Data}>
+              <LineChart width={width} height={300}>
+                <LineChart.Path color={theme.colors.warning} width={1.5} />
+              </LineChart>
+            </LineChart.Provider>
           </View>
         )}
 
@@ -590,6 +705,26 @@ const styles = StyleSheet.create({
   },
   indicatorValue: {
     fontSize: 12,
+    fontWeight: '600',
+    fontFamily: 'Courier',
+  },
+  maLegend: {
+    flexDirection: 'row',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  maLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  maLegendLine: {
+    width: 16,
+    height: 2,
+    borderRadius: 1,
+  },
+  maLegendText: {
+    fontSize: 10,
     fontWeight: '600',
     fontFamily: 'Courier',
   },
