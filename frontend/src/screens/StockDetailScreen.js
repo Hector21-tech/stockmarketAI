@@ -30,6 +30,7 @@ export default function StockDetailScreen({ route, navigation }) {
   const [volumeData, setVolumeData] = useState([]);
   const [rsiData, setRsiData] = useState([]);
   const [macdData, setMacdData] = useState([]);
+  const [stochData, setStochData] = useState([]);
   const [ema20Data, setEma20Data] = useState([]);
   const [sma50Data, setSma50Data] = useState([]);
   const [stockInfo, setStockInfo] = useState(null);
@@ -38,6 +39,7 @@ export default function StockDetailScreen({ route, navigation }) {
   const [chartType, setChartType] = useState('candle'); // 'line' or 'candle'
   const [showRSI, setShowRSI] = useState(true);
   const [showMACD, setShowMACD] = useState(false);
+  const [showStoch, setShowStoch] = useState(false);
   const [showEMA20, setShowEMA20] = useState(true);
   const [showSMA50, setShowSMA50] = useState(true);
 
@@ -121,6 +123,16 @@ export default function StockDetailScreen({ route, navigation }) {
           value: item.sma50,
         }));
       setSma50Data(sma50Data);
+
+      // Transform data for Stochastic
+      const stochData = data
+        .filter(item => item.stochastic !== undefined)
+        .map(item => ({
+          timestamp: item.timestamp,
+          k: item.stochastic.k,
+          d: item.stochastic.d,
+        }));
+      setStochData(stochData);
 
       // Get current price (last close)
       if (data.length > 0) {
@@ -383,6 +395,32 @@ export default function StockDetailScreen({ route, navigation }) {
             MACD
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setShowStoch(!showStoch)}
+          style={[
+            styles.indicatorToggle,
+            {
+              backgroundColor: showStoch
+                ? theme.colors.alpha(theme.colors.primary, 0.2)
+                : 'transparent',
+              borderColor: showStoch
+                ? theme.colors.primary
+                : theme.colors.border.primary,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.indicatorToggleText,
+              {
+                color: showStoch ? theme.colors.primary : theme.colors.text.secondary,
+                fontWeight: showStoch ? '600' : '400',
+              },
+            ]}
+          >
+            STOCH
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Chart */}
@@ -520,6 +558,34 @@ export default function StockDetailScreen({ route, navigation }) {
             <LineChart.Provider data={macdData.map(d => ({ timestamp: d.timestamp, value: d.macd }))}>
               <LineChart width={width} height={120}>
                 <LineChart.Path color={theme.colors.bullish} width={2} />
+              </LineChart>
+            </LineChart.Provider>
+          </View>
+        )}
+
+        {/* Stochastic Indicator */}
+        {showStoch && stochData.length > 0 && (
+          <View style={{ marginTop: theme.spacing.md }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.base }}>
+              <Text style={[styles.volumeTitle, { color: theme.colors.text.secondary, marginBottom: 0 }]}>
+                STOCHASTIC (14, 3)
+              </Text>
+              {stochData.length > 0 && (
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <Text style={[styles.indicatorValue, { color: theme.colors.bullish }]}>
+                    %K: {stochData[stochData.length - 1].k?.toFixed(2) || 'N/A'}
+                  </Text>
+                  <Text style={[styles.indicatorValue, { color: theme.colors.bearish }]}>
+                    %D: {stochData[stochData.length - 1].d?.toFixed(2) || 'N/A'}
+                  </Text>
+                </View>
+              )}
+            </View>
+            <LineChart.Provider data={stochData.map(d => ({ timestamp: d.timestamp, value: d.k }))}>
+              <LineChart width={width} height={120}>
+                <LineChart.Path color={theme.colors.bullish} width={2} />
+                <LineChart.HorizontalLine at={{ index: 0, value: 80 }} />
+                <LineChart.HorizontalLine at={{ index: 0, value: 20 }} />
               </LineChart>
             </LineChart.Provider>
           </View>

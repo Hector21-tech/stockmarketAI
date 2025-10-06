@@ -12,7 +12,7 @@
 
 ```
 Foundation:     ██████████ 100% ✅
-Charts & Data:  ███████░░░  70% 🟡
+Charts & Data:  ████████░░  75% 🟡
 Marketmate:     ░░░░░░░░░░   0%
 AI & Analytics: ░░░░░░░░░░   0%
 Social:         ░░░░░░░░░░   0%
@@ -90,7 +90,7 @@ Social:         ░░░░░░░░░░   0%
 ### 📉 Technical Indicators
 - [x] RSI overlay
 - [x] MACD overlay
-- [ ] Stochastic overlay
+- [x] Stochastic overlay
 - [x] Moving Averages (EMA20, SMA50)
 - [ ] Bollinger Bands
 - [x] Volume indicator
@@ -396,6 +396,9 @@ Social:         ░░░░░░░░░░   0%
 - ✅ Moving Averages (EMA20, SMA50) implementerade
 - ✅ MA overlay lines på chart med toggle controls
 - ✅ MA legend med current values
+- ✅ Stochastic indicator implementerad
+- ✅ Stochastic chart med %K och %D lines
+- ✅ Stochastic overbought/oversold levels (80/20)
 
 ---
 

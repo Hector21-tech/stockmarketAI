@@ -99,6 +99,7 @@ def get_historical_data():
     macd_line, signal_line, histogram = analyzer.calculate_macd(df)
     ema_20 = analyzer.calculate_ema(df, 20)
     sma_50 = analyzer.calculate_sma(df, 50)
+    k_percent, d_percent = analyzer.calculate_stochastic(df)
 
     # Convert DataFrame to JSON-friendly format
     data = []
@@ -132,6 +133,13 @@ def get_historical_data():
 
         if not pd.isna(sma_50.iloc[idx]):
             data_point['sma50'] = float(sma_50.iloc[idx])
+
+        # Add stochastic
+        if not pd.isna(k_percent.iloc[idx]) and not pd.isna(d_percent.iloc[idx]):
+            data_point['stochastic'] = {
+                'k': float(k_percent.iloc[idx]),
+                'd': float(d_percent.iloc[idx])
+            }
 
         data.append(data_point)
 
