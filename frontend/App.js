@@ -5,6 +5,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 
+// Theme
+import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
+
 // Screens
 import WatchlistScreen from './src/screens/WatchlistScreen';
 import SignalsScreen from './src/screens/SignalsScreen';
@@ -17,7 +20,8 @@ import { api } from './src/api/client';
 
 const Tab = createBottomTabNavigator();
 
-export default function App() {
+function AppContent() {
+  const { theme, isDark } = useTheme();
   const navigationRef = useRef();
   const notificationListener = useRef();
   const responseListener = useRef();
@@ -65,17 +69,23 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <NavigationContainer ref={navigationRef}>
-        <StatusBar style="auto" />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
         <Tab.Navigator
           screenOptions={{
-            tabBarActiveTintColor: '#2196F3',
-            tabBarInactiveTintColor: 'gray',
-            headerStyle: {
-              backgroundColor: '#2196F3',
+            tabBarActiveTintColor: theme.colors.primary,
+            tabBarInactiveTintColor: theme.colors.text.tertiary,
+            tabBarStyle: {
+              backgroundColor: theme.colors.background.secondary,
+              borderTopColor: theme.colors.border.primary,
             },
-            headerTintColor: '#fff',
+            headerStyle: {
+              backgroundColor: theme.colors.background.secondary,
+              borderBottomColor: theme.colors.border.primary,
+            },
+            headerTintColor: theme.colors.text.primary,
             headerTitleStyle: {
-              fontWeight: 'bold',
+              fontWeight: theme.typography.fontWeight.bold,
+              fontSize: theme.typography.fontSize.lg,
             },
           }}
         >
@@ -114,5 +124,13 @@ export default function App() {
         </Tab.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 }
