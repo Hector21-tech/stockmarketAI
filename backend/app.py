@@ -80,7 +80,7 @@ def get_stock_info():
 
 @app.route('/api/stock/historical', methods=['GET'])
 def get_historical_data():
-    """Hamtar historisk prisdata for charts"""
+    """Hamtar historisk prisdata for charts med tekniska indikatorer"""
     ticker = request.args.get('ticker')
     market = request.args.get('market', 'SE')
     period = request.args.get('period', '3mo')  # 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, max
@@ -94,10 +94,16 @@ def get_historical_data():
     if df.empty:
         return jsonify({'error': f'No data for {ticker}'}), 404
 
+    # Calculate technical indicators
+    rsi = analyzer.calculate_rsi(df)
+    macd_line, signal_line, histogram = analyzer.calculate_macd(df)
+
     # Convert DataFrame to JSON-friendly format
     data = []
     for index, row in df.iterrows():
-        data.append({
+        idx = df.index.get_loc(index)
+
+        data_point = {
             'timestamp': int(index.timestamp() * 1000),  # Convert to milliseconds
             'date': index.strftime('%Y-%m-%d'),
             'open': float(row['Open']),
@@ -105,7 +111,20 @@ def get_historical_data():
             'low': float(row['Low']),
             'close': float(row['Close']),
             'volume': int(row['Volume']) if 'Volume' in row else 0,
-        })
+        }
+
+        # Add technical indicators (handle NaN values)
+        if not pd.isna(rsi.iloc[idx]):
+            data_point['rsi'] = float(rsi.iloc[idx])
+
+        if not pd.isna(macd_line.iloc[idx]):
+            data_point['macd'] = {
+                'macd': float(macd_line.iloc[idx]),
+                'signal': float(signal_line.iloc[idx]) if not pd.isna(signal_line.iloc[idx]) else None,
+                'histogram': float(histogram.iloc[idx]) if not pd.isna(histogram.iloc[idx]) else None,
+            }
+
+        data.append(data_point)
 
     return jsonify({
         'ticker': ticker,

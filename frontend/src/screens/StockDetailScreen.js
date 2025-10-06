@@ -13,7 +13,7 @@ import {
   Dimensions,
   TouchableOpacity,
 } from 'react-native';
-import { LineChart } from 'react-native-wagmi-charts';
+import { LineChart, CandlestickChart } from 'react-native-wagmi-charts';
 import { useTheme } from '../theme/ThemeContext';
 import { Card, PriceText, Button } from '../components';
 import { api } from '../api/client';
@@ -26,9 +26,16 @@ export default function StockDetailScreen({ route, navigation }) {
 
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState([]);
+  const [candleData, setCandleData] = useState([]);
+  const [volumeData, setVolumeData] = useState([]);
+  const [rsiData, setRsiData] = useState([]);
+  const [macdData, setMacdData] = useState([]);
   const [stockInfo, setStockInfo] = useState(null);
   const [currentPrice, setCurrentPrice] = useState(null);
   const [period, setPeriod] = useState('3mo');
+  const [chartType, setChartType] = useState('candle'); // 'line' or 'candle'
+  const [showRSI, setShowRSI] = useState(true);
+  const [showMACD, setShowMACD] = useState(false);
 
   const periods = [
     { label: '1M', value: '1mo' },
@@ -49,13 +56,49 @@ export default function StockDetailScreen({ route, navigation }) {
       const histResponse = await api.getHistoricalData(ticker, period, '1d', market);
       const data = histResponse.data.data || [];
 
-      // Transform data for wagmi charts
-      const chartData = data.map(item => ({
+      // Transform data for line chart
+      const lineData = data.map(item => ({
         timestamp: item.timestamp,
         value: item.close,
       }));
+      setChartData(lineData);
 
-      setChartData(chartData);
+      // Transform data for candlestick chart
+      const candleData = data.map(item => ({
+        timestamp: item.timestamp,
+        open: item.open,
+        high: item.high,
+        low: item.low,
+        close: item.close,
+      }));
+      setCandleData(candleData);
+
+      // Transform data for volume bars
+      const volData = data.map(item => ({
+        timestamp: item.timestamp,
+        value: item.volume,
+      }));
+      setVolumeData(volData);
+
+      // Transform data for RSI
+      const rsiData = data
+        .filter(item => item.rsi !== undefined)
+        .map(item => ({
+          timestamp: item.timestamp,
+          value: item.rsi,
+        }));
+      setRsiData(rsiData);
+
+      // Transform data for MACD
+      const macdData = data
+        .filter(item => item.macd !== undefined)
+        .map(item => ({
+          timestamp: item.timestamp,
+          macd: item.macd.macd,
+          signal: item.macd.signal,
+          histogram: item.macd.histogram,
+        }));
+      setMacdData(macdData);
 
       // Get current price (last close)
       if (data.length > 0) {
@@ -104,8 +147,75 @@ export default function StockDetailScreen({ route, navigation }) {
         )}
       </View>
 
+      {/* Chart Type Selector */}
+      <View style={[styles.chartTypeSelector, { paddingHorizontal: theme.spacing.base, marginTop: theme.spacing.md }]}>
+        <TouchableOpacity
+          onPress={() => setChartType('candle')}
+          style={[
+            styles.chartTypeButton,
+            {
+              backgroundColor:
+                chartType === 'candle'
+                  ? theme.colors.alpha(theme.colors.primary, 0.2)
+                  : 'transparent',
+              borderColor:
+                chartType === 'candle'
+                  ? theme.colors.primary
+                  : theme.colors.border.primary,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.chartTypeText,
+              {
+                color:
+                  chartType === 'candle'
+                    ? theme.colors.primary
+                    : theme.colors.text.secondary,
+                fontWeight: chartType === 'candle' ? '700' : '400',
+              },
+            ]}
+          >
+            Candles
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => setChartType('line')}
+          style={[
+            styles.chartTypeButton,
+            {
+              backgroundColor:
+                chartType === 'line'
+                  ? theme.colors.alpha(theme.colors.primary, 0.2)
+                  : 'transparent',
+              borderColor:
+                chartType === 'line'
+                  ? theme.colors.primary
+                  : theme.colors.border.primary,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.chartTypeText,
+              {
+                color:
+                  chartType === 'line'
+                    ? theme.colors.primary
+                    : theme.colors.text.secondary,
+                fontWeight: chartType === 'line' ? '700' : '400',
+              },
+            ]}
+          >
+            Line
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Period Selector */}
-      <View style={[styles.periodSelector, { paddingHorizontal: theme.spacing.base, marginTop: theme.spacing.md }]}>
+      <View style={[styles.periodSelector, { paddingHorizontal: theme.spacing.base, marginTop: theme.spacing.sm }]}>
         {periods.map((p) => (
           <TouchableOpacity
             key={p.value}
@@ -142,12 +252,83 @@ export default function StockDetailScreen({ route, navigation }) {
         ))}
       </View>
 
+      {/* Indicator Toggles */}
+      <View style={[styles.indicatorToggles, { paddingHorizontal: theme.spacing.base, marginTop: theme.spacing.sm }]}>
+        <Text style={[styles.indicatorLabel, { color: theme.colors.text.secondary }]}>
+          Indicators:
+        </Text>
+        <TouchableOpacity
+          onPress={() => setShowRSI(!showRSI)}
+          style={[
+            styles.indicatorToggle,
+            {
+              backgroundColor: showRSI
+                ? theme.colors.alpha(theme.colors.primary, 0.2)
+                : 'transparent',
+              borderColor: showRSI
+                ? theme.colors.primary
+                : theme.colors.border.primary,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.indicatorToggleText,
+              {
+                color: showRSI ? theme.colors.primary : theme.colors.text.secondary,
+                fontWeight: showRSI ? '600' : '400',
+              },
+            ]}
+          >
+            RSI
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setShowMACD(!showMACD)}
+          style={[
+            styles.indicatorToggle,
+            {
+              backgroundColor: showMACD
+                ? theme.colors.alpha(theme.colors.primary, 0.2)
+                : 'transparent',
+              borderColor: showMACD
+                ? theme.colors.primary
+                : theme.colors.border.primary,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.indicatorToggleText,
+              {
+                color: showMACD ? theme.colors.primary : theme.colors.text.secondary,
+                fontWeight: showMACD ? '600' : '400',
+              },
+            ]}
+          >
+            MACD
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Chart */}
       <View style={[styles.chartContainer, { marginTop: theme.spacing.md }]}>
-        {chartData.length > 0 ? (
+        {chartType === 'candle' && candleData.length > 0 ? (
+          <CandlestickChart.Provider data={candleData}>
+            <CandlestickChart width={width} height={300}>
+              <CandlestickChart.Candles
+                positiveColor={theme.colors.bullish}
+                negativeColor={theme.colors.bearish}
+              />
+              <CandlestickChart.Crosshair>
+                <CandlestickChart.Tooltip />
+              </CandlestickChart.Crosshair>
+            </CandlestickChart>
+          </CandlestickChart.Provider>
+        ) : chartType === 'line' && chartData.length > 0 ? (
           <LineChart.Provider data={chartData}>
             <LineChart width={width} height={300}>
-              <LineChart.Path color={theme.colors.primary} />
+              <LineChart.Path color={theme.colors.primary} width={2} />
               <LineChart.CursorCrosshair>
                 <LineChart.Tooltip />
               </LineChart.CursorCrosshair>
@@ -158,6 +339,74 @@ export default function StockDetailScreen({ route, navigation }) {
             <Text style={[styles.emptyText, { color: theme.colors.text.tertiary }]}>
               No chart data available
             </Text>
+          </View>
+        )}
+
+        {/* Volume Chart */}
+        {volumeData.length > 0 && (
+          <View style={{ marginTop: theme.spacing.md }}>
+            <Text style={[styles.volumeTitle, { color: theme.colors.text.secondary, paddingHorizontal: theme.spacing.base }]}>
+              VOLUME
+            </Text>
+            <LineChart.Provider data={volumeData}>
+              <LineChart width={width} height={100}>
+                <LineChart.Path
+                  color={theme.colors.alpha(theme.colors.primary, 0.6)}
+                  width={1}
+                >
+                  <LineChart.Gradient color={theme.colors.primary} />
+                </LineChart.Path>
+              </LineChart>
+            </LineChart.Provider>
+          </View>
+        )}
+
+        {/* RSI Indicator */}
+        {showRSI && rsiData.length > 0 && (
+          <View style={{ marginTop: theme.spacing.md }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.base }}>
+              <Text style={[styles.volumeTitle, { color: theme.colors.text.secondary, marginBottom: 0 }]}>
+                RSI (14)
+              </Text>
+              {rsiData.length > 0 && (
+                <Text style={[styles.indicatorValue, { color: theme.colors.text.primary }]}>
+                  {rsiData[rsiData.length - 1].value.toFixed(2)}
+                </Text>
+              )}
+            </View>
+            <LineChart.Provider data={rsiData}>
+              <LineChart width={width} height={120}>
+                <LineChart.Path color={theme.colors.primary} width={2} />
+                <LineChart.HorizontalLine at={{ index: 0, value: 70 }} />
+                <LineChart.HorizontalLine at={{ index: 0, value: 30 }} />
+              </LineChart>
+            </LineChart.Provider>
+          </View>
+        )}
+
+        {/* MACD Indicator */}
+        {showMACD && macdData.length > 0 && (
+          <View style={{ marginTop: theme.spacing.md }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.base }}>
+              <Text style={[styles.volumeTitle, { color: theme.colors.text.secondary, marginBottom: 0 }]}>
+                MACD (12, 26, 9)
+              </Text>
+              {macdData.length > 0 && (
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <Text style={[styles.indicatorValue, { color: theme.colors.bullish }]}>
+                    {macdData[macdData.length - 1].macd?.toFixed(2) || 'N/A'}
+                  </Text>
+                  <Text style={[styles.indicatorValue, { color: theme.colors.bearish }]}>
+                    {macdData[macdData.length - 1].signal?.toFixed(2) || 'N/A'}
+                  </Text>
+                </View>
+              )}
+            </View>
+            <LineChart.Provider data={macdData.map(d => ({ timestamp: d.timestamp, value: d.macd }))}>
+              <LineChart width={width} height={120}>
+                <LineChart.Path color={theme.colors.bullish} width={2} />
+              </LineChart>
+            </LineChart.Provider>
           </View>
         )}
       </View>
@@ -244,6 +493,23 @@ const styles = StyleSheet.create({
   ticker: {
     marginBottom: 4,
   },
+  chartTypeSelector: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  chartTypeButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    flex: 1,
+    alignItems: 'center',
+  },
+  chartTypeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
   periodSelector: {
     flexDirection: 'row',
     gap: 8,
@@ -257,6 +523,13 @@ const styles = StyleSheet.create({
   periodText: {
     fontSize: 12,
     letterSpacing: 0.5,
+  },
+  volumeTitle: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
   },
   chartContainer: {
     alignItems: 'center',
@@ -292,5 +565,32 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
     textAlign: 'right',
+  },
+  indicatorToggles: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  indicatorLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginRight: 4,
+  },
+  indicatorToggle: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  indicatorToggleText: {
+    fontSize: 11,
+    letterSpacing: 0.5,
+  },
+  indicatorValue: {
+    fontSize: 12,
+    fontWeight: '600',
+    fontFamily: 'Courier',
   },
 });
