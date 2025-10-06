@@ -28,6 +28,9 @@ export const api = {
   getStockInfo: (ticker, market = 'SE') =>
     apiClient.get('/stock/info', { params: { ticker, market } }),
 
+  getHistoricalData: (ticker, period = '3mo', interval = '1d', market = 'SE') =>
+    apiClient.get('/stock/historical', { params: { ticker, period, interval, market } }),
+
   // AI Analysis
   analyzeStock: (ticker, market = 'SE') =>
     apiClient.post('/analyze', { ticker, market }),

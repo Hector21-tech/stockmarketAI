@@ -99,6 +99,7 @@ export default function WatchlistScreen({ navigation }) {
 
   const renderStockItem = ({ item }) => (
     <TouchableOpacity
+      onPress={() => navigation.navigate('StockDetail', { ticker: item.ticker, market: 'SE' })}
       onLongPress={() => removeFromWatchlist(item.ticker)}
       activeOpacity={0.7}
     >

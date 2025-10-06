@@ -78,6 +78,45 @@ def get_stock_info():
     return jsonify(info)
 
 
+@app.route('/api/stock/historical', methods=['GET'])
+def get_historical_data():
+    """Hamtar historisk prisdata for charts"""
+    ticker = request.args.get('ticker')
+    market = request.args.get('market', 'SE')
+    period = request.args.get('period', '3mo')  # 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, max
+    interval = request.args.get('interval', '1d')  # 1m, 5m, 15m, 1h, 1d, 1wk, 1mo
+
+    if not ticker:
+        return jsonify({'error': 'ticker required'}), 400
+
+    df = fetcher.get_historical_data(ticker, period, market)
+
+    if df.empty:
+        return jsonify({'error': f'No data for {ticker}'}), 404
+
+    # Convert DataFrame to JSON-friendly format
+    data = []
+    for index, row in df.iterrows():
+        data.append({
+            'timestamp': int(index.timestamp() * 1000),  # Convert to milliseconds
+            'date': index.strftime('%Y-%m-%d'),
+            'open': float(row['Open']),
+            'high': float(row['High']),
+            'low': float(row['Low']),
+            'close': float(row['Close']),
+            'volume': int(row['Volume']) if 'Volume' in row else 0,
+        })
+
+    return jsonify({
+        'ticker': ticker,
+        'market': market,
+        'period': period,
+        'interval': interval,
+        'data': data,
+        'count': len(data)
+    })
+
+
 # ============ AI ANALYSIS ENDPOINTS ============
 
 @app.route('/api/analyze', methods=['POST'])
@@ -405,6 +444,7 @@ if __name__ == '__main__':
     print("  GET  /api/stock/price?ticker=VOLVO-B&market=SE")
     print("  POST /api/stock/prices")
     print("  GET  /api/stock/info?ticker=VOLVO-B")
+    print("  GET  /api/stock/historical?ticker=VOLVO-B&period=3mo")
     print("  POST /api/analyze")
     print("  POST /api/scan")
     print("  POST /api/signals/buy")

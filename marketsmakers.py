@@ -397,3 +397,89 @@ def _demo_cli():
 
 if __name__ == "__main__":
     _demo_cli()
+
+
+# ============== ENTRY ALERTS + TRADE PLAN ==============
+
+@dataclass
+class TradePlan:
+    entry: float
+    stop: float
+    targets: List[float]
+    partials: List[float]  # fractions summing to 1.0
+    size: int
+    rules: List[str]
+
+class Planner:
+    @staticmethod
+    def make_plan(entry: float,
+                  stop: Optional[float]=None,
+                  target: Optional[float]=None,
+                  capital: float=CONFIG.initial_capital,
+                  risk_pct: float=0.01,
+                  partials: Optional[List[float]]=None,
+                  atr: Optional[float]=None,
+                  atr_trail_mult: float=2.0) -> TradePlan:
+        """
+        Build a simple 3-step plan:
+        - TP1 = 1R, TP2 = 2R, TP3 = explicit target or 3R
+        - After TP1: move stop to breakeven
+        - After TP2: trail stop by ATR * atr_trail_mult (if ATR available), else lock 1R
+        """
+        if stop is None:
+            # fallback stop using ATR if provided, else 3% below
+            if atr is not None:
+                stop = max(0.01, entry - 1.5 * atr)
+            else:
+                stop = max(0.01, entry * 0.97)
+        r = entry - stop
+        if r <= 0:
+            r = max(entry * 0.03, 0.01)  # ensure positive R
+            stop = entry - r
+
+        # Default targets
+        tp1 = entry + 1.0 * r
+        tp2 = entry + 2.0 * r
+        tp3 = target if (target is not None) else (entry + 3.0 * r)
+
+        # Position size by risk
+        shares = Risk.position_size(capital, entry, stop, risk_pct=risk_pct)
+
+        if partials is None:
+            partials = [0.33, 0.33, 0.34]
+        if abs(sum(partials) - 1.0) > 1e-6:
+            s = sum(partials)
+            partials = [x / s for x in partials]
+
+        rules = [
+            f"Initial stop @ {stop:.2f} (risk {r:.2f} = 1R).",
+            f"TP1 @ {tp1:.2f} (1R): sälj {int(round(partials[0]*100))}% och flytta stop till breakeven ({entry:.2f}).",
+            f"TP2 @ {tp2:.2f} (2R): sälj {int(round(partials[1]*100))}% och {'trailing stop ' + str(atr_trail_mult)+'×ATR' if atr is not None else 'lås minst +1R'}.",
+            f"TP3 @ {tp3:.2f}: sälj resten ({int(round(partials[2]*100))}%).",
+            "Om daglig stängning under stop → exit direkt nästa öppning.",
+            "Om gap ned under stop → exit så snart som möjligt (riskhantering först).",
+        ]
+        return TradePlan(entry=entry, stop=stop, targets=[tp1, tp2, tp3],
+                         partials=partials, size=shares, rules=rules)
+
+class SignalAlerts:
+    """
+    Detects fresh entries when strategy flips from flat(0) to long(1).
+    Use on new bars or periodically. Integrate with your push/notification layer.
+    """
+    def __init__(self, notifier: Optional[Callable[[str], None]] = None):
+        self.notifier = notifier
+
+    def detect_entries(self, df: pd.DataFrame, signal: pd.Series) -> List[pd.Timestamp]:
+        sig = signal.fillna(0).astype(int)
+        flips = (sig.shift(1).fillna(0) == 0) & (sig == 1)
+        ts_list = list(df.index[flips])
+        if self.notifier:
+            for ts in ts_list:
+                price = float(df.loc[ts, "Close"])
+                self.notifier(f"ENTRY SIGNAL: {ts.strftime('%Y-%m-%d')} close={price:.2f}")
+        return ts_list
+
+# Example notifier hook you can replace with push notification
+def print_notifier(msg: str):
+    print(f"[ALERT] {msg}")

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createStackNavigator } from '@react-navigation/stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
@@ -11,6 +12,7 @@ import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 // Screens
 import DashboardScreen from './src/screens/DashboardScreen';
 import WatchlistScreen from './src/screens/WatchlistScreen';
+import StockDetailScreen from './src/screens/StockDetailScreen';
 import SignalsScreen from './src/screens/SignalsScreen';
 import PositionsScreen from './src/screens/PositionsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
@@ -20,6 +22,39 @@ import NotificationService from './src/services/NotificationService';
 import { api } from './src/api/client';
 
 const Tab = createBottomTabNavigator();
+const Stack = createStackNavigator();
+
+// Watchlist Stack Navigator
+function WatchlistStack() {
+  const { theme } = useTheme();
+
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: theme.colors.background.secondary,
+        },
+        headerTintColor: theme.colors.text.primary,
+        headerTitleStyle: {
+          fontWeight: theme.typography.fontWeight.bold,
+        },
+      }}
+    >
+      <Stack.Screen
+        name="WatchlistMain"
+        component={WatchlistScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="StockDetail"
+        component={StockDetailScreen}
+        options={({ route }) => ({
+          title: route.params?.ticker || 'Stock Detail',
+        })}
+      />
+    </Stack.Navigator>
+  );
+}
 
 function AppContent() {
   const { theme, isDark } = useTheme();
@@ -100,10 +135,11 @@ function AppContent() {
           />
           <Tab.Screen
             name="Watchlist"
-            component={WatchlistScreen}
+            component={WatchlistStack}
             options={{
               title: 'Min Watchlist',
               tabBarLabel: 'Watchlist',
+              headerShown: false,
             }}
           />
           <Tab.Screen
