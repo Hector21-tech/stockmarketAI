@@ -1,0 +1,120 @@
+# =====================================
+# 📊 MARKETMATE COMPLETE STRATEGY v1.0
+# =====================================
+meta:
+  name: "Marketmate Core Strategy"
+  version: "1.0"
+  author: "Hector / Marketmate AI"
+  description: >
+    AI-driven swing-tradingstrategi som kombinerar trendföljning,
+    momentum, säsongsmönster och sentimentdata.
+    Anpassad för både svenska (.ST) och amerikanska aktier.
+
+  timeframe: "1D"
+  universe:
+    - AAPL
+    - NVDA
+    - MSFT
+    - VOLVO-B.ST
+    - HM-B.ST
+    - ERIC-B.ST
+
+trend_filter:
+  ma_period: 50
+  adx_min: 18
+  confirm_with_weekly: true
+  volume_confirmation: true
+
+entry:
+  rsi:
+    enabled: true
+    period: 14
+    oversold: 35
+    overbought: 65
+    divergence: true
+    weight: 0.35
+  macd:
+    enabled: true
+    fast: 12
+    slow: 26
+    signal: 9
+    cross_up: true
+    histogram_min: 0.05
+    weight: 0.35
+  stochastic:
+    enabled: true
+    k_period: 14
+    d_period: 3
+    overbought: 80
+    oversold: 20
+    weight: 0.15
+  structure:
+    enabled: true
+    confirm_breakout: true
+    volume_confirmation: true
+    weight: 0.15
+
+exit:
+  rule: "1/3"
+  targets:
+    r1_multiple: 1.5
+    r2_multiple: 3.0
+  trailing_stop:
+    type: "chandelier"
+    atr_mult: 3
+    lookback: 22
+  move_stop_after_r1: true
+  move_stop_after_r2: true
+
+risk:
+  max_risk_per_trade_pct: 0.5
+  max_positions: 10
+  risk_reward_min: 1.5
+  sl_buffer_pct: 0.3
+  atr_stop:
+    enabled: true
+    atr_mult: 2.0
+
+scoring:
+  weight_rsi: 0.3
+  weight_macd: 0.3
+  weight_stochastic: 0.2
+  weight_trend: 0.2
+  bonus_divergence: 10
+  penalty_flat_trend: -15
+  threshold_buy: 65
+  threshold_sell: 65
+  threshold_hold: 0
+
+sentiment:
+  include_fear_greed: true
+  include_aaii: true
+  include_cot: true
+  combine_weight: 0.2
+  bullish_if:
+    fear_greed_above: 60
+    aaii_bulls_above: 40
+  bearish_if:
+    fear_greed_below: 35
+    aaii_bears_above: 40
+
+seasonality:
+  include: true
+  bullish_months: [10, 11, 12, 1, 2, 3]
+  bearish_months: [8, 9]
+  weight: 0.15
+
+macro:
+  include: true
+  prefer_rate_cuts: true
+  prefer_gdp_growth: "positive"
+  avoid_recession_flag: true
+
+backtest:
+  start_date: "2020-01-01"
+  end_date: "2025-01-01"
+  initial_capital: 100000
+  commission_per_trade: 0.0005
+  slippage_pct: 0.05
+  show_equity_curve: true
+  log_trades: true

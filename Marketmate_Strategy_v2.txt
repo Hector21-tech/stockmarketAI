@@ -1,0 +1,76 @@
+MARKETMATE STRATEGY MODEL v2 – FULL STRATEGY OVERVIEW
+
+🎯 1. Filosofi & Syfte
+Marketmate arbetar systematiskt med målet att följa marknaden, inte förutse den.
+All analys bygger på tre grundpelare:
+1. Likviditet (M2, Fed, räntor, penningmängd)
+2. Sentiment (AAII, Fear & Greed, positionering, optioner)
+3. Teknisk struktur (mönster, divergenser, volym, momentum)
+
+Målet: ligga rätt i riktning – inte pricka topp eller botten.
+
+📊 2. Makro & Likviditet
+Makrofaktorer används som vindriktning:
+- Ökande M2 → positiv likviditet → stöd för aktier.
+- Svag sysselsättning → "bad news = good news" → mjukare Fed.
+Makro = klimat, Teknik = karta.
+
+🧭 3. Sentiment & Positionering
+Datakällor:
+- AAII Sentiment Survey
+- SKEW/VIX-index
+- CTA/Dealer Gamma-data
+- Optionspositioner (DB, GS, JPM)
+- Fear & Greed Index
+De letar alltid avvikelser: eufori = risk, rädsla = möjlighet.
+
+📉 4. Trade Setup (Case-struktur)
+Varje case innehåller:
+- Namn
+- Graf (4h, 1D, Weekly)
+- Entry, Stop loss, Target
+- Indikatorer: RSI, MACD, Stoch
+- Kort kommentar om momentum och struktur
+
+Exempel: "Sinch handlas i bullflagga. Stop loss 29,45. Target 32,30."
+
+⚙️ 5. Trade Management (Core System)
+Inträde:
+- Köp vid teknisk bekräftelse
+- Position: ½ eller ⅓ size
+- Stop loss under stöd
+
+Delvinst (1/3-regeln):
+- +3–5 % eller första motstånd → ta 1/3 vinst
+- Flytta stop till break-even
+
+Andra delvinst:
+- Nästa ⅓ tas vid nästa motstånd
+- Flytta stop under senaste swing-low
+
+Slutlig exit:
+- Sista ⅓ hålls så länge trend kvarstår
+- Stäng vid bearish crossover eller svaghet
+
+💡 6. Rotation & Re-entry
+- Bevaka för nya signaler efter exit
+- Re-entry endast vid bekräftad signal
+- Kontinuitet > aktivitet
+
+🧩 7. Risk & Disciplin
+- Max risk per case: 1,5–2 %
+- Stop loss flyttas aldrig nedåt
+- All handel mekanisk, repeterbar
+- Ingen trade är “speciell”
+
+💬 8. Språk & Ton
+- Saklig, lugn, kortfattad, faktabaserad
+- Struktur: "Stop loss", "Target", "Kommentar"
+Exempel: "Positiv divergens i RSI. Target 298. Stop 279,5."
+
+📘 9. Kärna
+Disciplin före gissning.
+Data före känsla.
+Struktur före tempo.
+
+Målet: Definierad risk. Konsekventa vinster. Låt marknaden bevisa riktningen.

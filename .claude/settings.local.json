@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:www.marketmate.se)",
+      "Bash(dir)",
+      "WebFetch(domain:x.com)",
+      "Bash(python:*)",
+      "Bash(dir:*)",
+      "Bash(curl http://localhost:5000/api/health)",
+      "Bash(curl \"http://localhost:5000/api/stock/price?ticker=VOLVO-B&market=SE\")",
+      "Bash(curl -X POST http://localhost:5000/api/analyze -H \"Content-Type: application/json\" -d \"{\"\"ticker\"\":\"\"VOLVO-B\"\",\"\"market\"\":\"\"SE\"\"}\")",
+      "Bash(node:*)",
+      "Bash(npm install)",
+      "Bash(npx expo:*)",
+      "Bash(timeout:*)",
+      "Bash(exit 0)",
+      "Bash(start http://localhost:8081)",
+      "Bash(start http://localhost:19000)",
+      "Bash(taskkill:*)",
+      "Bash(cmd //c:*)",
+      "Bash(cmd /c:*)",
+      "Bash(start http://localhost:8082)",
+      "Bash(npm install:*)",
+      "Bash(pip install:*)",
+      "Bash(npm start)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(start http://localhost:8083)",
+      "Bash(start http://localhost:9001)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
