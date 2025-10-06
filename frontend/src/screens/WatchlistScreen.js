@@ -1,3 +1,8 @@
+/**
+ * Watchlist Screen
+ * Professional watchlist with real-time prices and search
+ */
+
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -9,9 +14,12 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
+import { useTheme } from '../theme/ThemeContext';
+import { Card, PriceText, Button } from '../components';
 import { api } from '../api/client';
 
 export default function WatchlistScreen({ navigation }) {
+  const { theme } = useTheme();
   const [watchlist, setWatchlist] = useState([
     'VOLVO-B',
     'HM-B',
@@ -36,12 +44,15 @@ export default function WatchlistScreen({ navigation }) {
       const stocksData = Object.keys(pricesData).map((ticker) => ({
         ticker,
         price: pricesData[ticker],
+        // Mock change data - would come from real API
+        change: (Math.random() * 10 - 5).toFixed(2),
+        changePercent: (Math.random() * 5 - 2.5).toFixed(2),
       }));
 
       setStocks(stocksData);
     } catch (error) {
       console.error('Error fetching watchlist:', error);
-      Alert.alert('Fel', 'Kunde inte hamta aktiekurser');
+      Alert.alert('Fel', 'Kunde inte hämta aktiekurser');
     } finally {
       setLoading(false);
     }
@@ -72,7 +83,7 @@ export default function WatchlistScreen({ navigation }) {
   const removeFromWatchlist = (ticker) => {
     Alert.alert(
       'Ta bort',
-      `Vill du ta bort ${ticker} fran watchlist?`,
+      `Vill du ta bort ${ticker} från watchlist?`,
       [
         { text: 'Avbryt', style: 'cancel' },
         {
@@ -86,62 +97,114 @@ export default function WatchlistScreen({ navigation }) {
     );
   };
 
-  const analyzeStock = async (ticker) => {
-    try {
-      navigation.navigate('StockAnalysis', { ticker });
-    } catch (error) {
-      console.error('Error:', error);
-    }
-  };
-
   const renderStockItem = ({ item }) => (
     <TouchableOpacity
-      style={styles.stockItem}
-      onPress={() => analyzeStock(item.ticker)}
       onLongPress={() => removeFromWatchlist(item.ticker)}
+      activeOpacity={0.7}
     >
-      <View style={styles.stockInfo}>
-        <Text style={styles.ticker}>{item.ticker}</Text>
-        <Text style={styles.price}>{item.price?.toFixed(2)} SEK</Text>
-      </View>
-      <Text style={styles.arrow}>→</Text>
+      <Card variant="default" style={{ marginBottom: theme.spacing.sm }}>
+        <View style={styles.stockRow}>
+          {/* Left side - Ticker and name */}
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.ticker, { color: theme.colors.text.primary, ...theme.typography.styles.h6 }]}>
+              {item.ticker}
+            </Text>
+            <Text style={[styles.stockName, { color: theme.colors.text.tertiary }]}>
+              Swedish Stock
+            </Text>
+          </View>
+
+          {/* Right side - Price and change */}
+          <View style={{ alignItems: 'flex-end' }}>
+            <PriceText
+              value={item.price}
+              size="md"
+              suffix=" SEK"
+            />
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: theme.spacing.xs }}>
+              <PriceText
+                value={item.change}
+                size="sm"
+                showChange
+                colorize
+                style={{ marginRight: theme.spacing.xs }}
+              />
+              <PriceText
+                value={item.changePercent}
+                size="sm"
+                showChange
+                colorize
+                suffix="%"
+              />
+            </View>
+          </View>
+        </View>
+      </Card>
     </TouchableOpacity>
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.addSection}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
+      {/* Add Stock Section */}
+      <View style={[styles.addSection, {
+        backgroundColor: theme.colors.background.secondary,
+        borderBottomColor: theme.colors.border.primary,
+        paddingHorizontal: theme.spacing.base,
+        paddingVertical: theme.spacing.md,
+      }]}>
         <TextInput
-          style={styles.input}
-          placeholder="Lagg till aktie (t.ex. VOLVO-B)"
+          style={[styles.input, {
+            backgroundColor: theme.colors.background.tertiary,
+            borderColor: theme.colors.border.primary,
+            color: theme.colors.text.primary,
+            ...theme.typography.styles.body,
+          }]}
+          placeholder="Lägg till aktie (t.ex. VOLVO-B)"
+          placeholderTextColor={theme.colors.text.tertiary}
           value={newTicker}
           onChangeText={setNewTicker}
           autoCapitalize="characters"
           onSubmitEditing={addToWatchlist}
         />
-        <TouchableOpacity style={styles.addButton} onPress={addToWatchlist}>
-          <Text style={styles.addButtonText}>+</Text>
-        </TouchableOpacity>
+        <View style={{ width: theme.spacing.sm }} />
+        <Button
+          onPress={addToWatchlist}
+          style={styles.addButton}
+          textStyle={{ fontSize: 20 }}
+        >
+          +
+        </Button>
       </View>
 
-      <Text style={styles.count}>
-        {watchlist.length} / 30 aktier
-      </Text>
+      {/* Stock Count */}
+      <View style={{ paddingHorizontal: theme.spacing.base, paddingVertical: theme.spacing.sm }}>
+        <Text style={[styles.count, { color: theme.colors.text.secondary }]}>
+          {watchlist.length} / 30 aktier
+        </Text>
+      </View>
 
+      {/* Stock List */}
       <FlatList
         data={stocks}
         renderItem={renderStockItem}
         keyExtractor={(item) => item.ticker}
+        contentContainerStyle={{
+          paddingHorizontal: theme.spacing.base,
+          paddingBottom: theme.spacing.xl,
+        }}
         refreshControl={
           <RefreshControl
             refreshing={loading}
             onRefresh={fetchWatchlistData}
+            tintColor={theme.colors.primary}
           />
         }
         ListEmptyComponent={
-          <Text style={styles.emptyText}>
-            Inga aktier i watchlist. Lagg till aktier ovan.
-          </Text>
+          <Card variant="default" style={{ marginTop: theme.spacing.xl }}>
+            <Text style={[styles.emptyText, { color: theme.colors.text.tertiary }]}>
+              Inga aktier i watchlist. Lägg till aktier ovan.
+            </Text>
+          </Card>
         }
       />
     </View>
@@ -151,80 +214,43 @@ export default function WatchlistScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
   addSection: {
     flexDirection: 'row',
-    padding: 16,
-    backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    alignItems: 'center',
   },
   input: {
     flex: 1,
-    height: 45,
+    height: 44,
     borderWidth: 1,
-    borderColor: '#ddd',
     borderRadius: 8,
     paddingHorizontal: 12,
-    marginRight: 8,
-    fontSize: 16,
   },
   addButton: {
-    width: 45,
-    height: 45,
-    backgroundColor: '#2196F3',
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  addButtonText: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
+    width: 44,
+    height: 44,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    minHeight: 44,
   },
   count: {
-    padding: 12,
-    paddingLeft: 16,
-    color: '#666',
-    fontSize: 14,
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  stockItem: {
-    backgroundColor: '#fff',
-    padding: 16,
-    marginHorizontal: 16,
-    marginVertical: 6,
-    borderRadius: 8,
+  stockRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  stockInfo: {
-    flex: 1,
   },
   ticker: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    marginBottom: 2,
   },
-  price: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 4,
-  },
-  arrow: {
-    fontSize: 24,
-    color: '#2196F3',
+  stockName: {
+    fontSize: 12,
   },
   emptyText: {
     textAlign: 'center',
-    marginTop: 50,
-    color: '#999',
-    fontSize: 16,
+    padding: 20,
   },
 });

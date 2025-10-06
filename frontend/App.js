@@ -9,6 +9,7 @@ import * as Notifications from 'expo-notifications';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 
 // Screens
+import DashboardScreen from './src/screens/DashboardScreen';
 import WatchlistScreen from './src/screens/WatchlistScreen';
 import SignalsScreen from './src/screens/SignalsScreen';
 import PositionsScreen from './src/screens/PositionsScreen';
@@ -89,6 +90,14 @@ function AppContent() {
             },
           }}
         >
+          <Tab.Screen
+            name="Dashboard"
+            component={DashboardScreen}
+            options={{
+              title: 'Dashboard',
+              tabBarLabel: 'Dashboard',
+            }}
+          />
           <Tab.Screen
             name="Watchlist"
             component={WatchlistScreen}

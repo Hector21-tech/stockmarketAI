@@ -1,16 +1,24 @@
+/**
+ * Positions Screen
+ * Track open positions with 1/3-exit rule management
+ */
+
 import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   FlatList,
-  TouchableOpacity,
   StyleSheet,
   RefreshControl,
   Alert,
+  ScrollView,
 } from 'react-native';
+import { useTheme } from '../theme/ThemeContext';
+import { Card, PriceText } from '../components';
 import { api } from '../api/client';
 
 export default function PositionsScreen() {
+  const { theme } = useTheme();
   const [positions, setPositions] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -39,7 +47,7 @@ export default function PositionsScreen() {
 
       if (newNotifications.length > 0) {
         setNotifications(newNotifications);
-        // Visa forsta notifikationen
+        // Show first notification
         const notif = newNotifications[0];
         Alert.alert(
           `${notif.type}: ${notif.ticker}`,
@@ -57,130 +65,211 @@ export default function PositionsScreen() {
     checkPositions();
   };
 
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'OPEN':
+        return theme.colors.bullish;
+      case 'PARTIAL':
+        return theme.colors.warning || '#FF9800';
+      case 'CLOSED':
+        return theme.colors.text.tertiary;
+      default:
+        return theme.colors.text.tertiary;
+    }
+  };
+
   const renderPositionItem = ({ item }) => {
-    const profitColor =
-      item.status === 'CLOSED'
-        ? '#666'
-        : item.unrealized_percent > 0
-        ? '#4CAF50'
-        : '#F44336';
+    const statusColor = getStatusColor(item.status);
 
     return (
-      <View style={styles.positionCard}>
+      <Card variant="elevated" style={{ marginBottom: theme.spacing.md }}>
+        {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.ticker}>{item.ticker}</Text>
-          <View
-            style={[
-              styles.statusBadge,
-              {
-                backgroundColor:
-                  item.status === 'OPEN'
-                    ? '#4CAF50'
-                    : item.status === 'PARTIAL'
-                    ? '#FF9800'
-                    : '#9E9E9E',
-              },
-            ]}
-          >
-            <Text style={styles.statusText}>{item.status}</Text>
+          <View>
+            <Text style={[styles.ticker, { color: theme.colors.text.primary, ...theme.typography.styles.h5 }]}>
+              {item.ticker}
+            </Text>
+            <Text style={[styles.subtitle, { color: theme.colors.text.secondary }]}>
+              {item.current_shares} aktier
+            </Text>
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: theme.colors.alpha(statusColor, 0.2) }]}>
+            <Text style={[styles.statusText, { color: statusColor }]}>
+              {item.status}
+            </Text>
           </View>
         </View>
 
-        <View style={styles.row}>
-          <Text style={styles.label}>Aktier:</Text>
-          <Text style={styles.value}>{item.current_shares}</Text>
-        </View>
+        {/* Prices */}
+        <View style={[styles.pricesRow, { marginTop: theme.spacing.md }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.priceLabel, { color: theme.colors.text.secondary }]}>
+              Entry Price
+            </Text>
+            <PriceText value={item.entry_price} size="md" suffix=" SEK" />
+          </View>
 
-        <View style={styles.row}>
-          <Text style={styles.label}>Entry:</Text>
-          <Text style={styles.value}>{item.entry_price} SEK</Text>
-        </View>
-
-        {item.current_price && (
-          <>
-            <View style={styles.row}>
-              <Text style={styles.label}>Nuvarande:</Text>
-              <Text style={styles.value}>{item.current_price} SEK</Text>
-            </View>
-
-            <View style={styles.row}>
-              <Text style={styles.label}>P/L:</Text>
-              <Text style={[styles.value, { color: profitColor }]}>
-                {item.unrealized_profit > 0 ? '+' : ''}
-                {item.unrealized_profit} SEK (
-                {item.unrealized_percent > 0 ? '+' : ''}
-                {item.unrealized_percent.toFixed(2)}%)
+          {item.current_price && (
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.priceLabel, { color: theme.colors.text.secondary }]}>
+                Current Price
               </Text>
+              <PriceText value={item.current_price} size="md" suffix=" SEK" />
             </View>
-          </>
+          )}
+        </View>
+
+        {/* P/L */}
+        {item.current_price && (
+          <View style={[styles.plSection, {
+            backgroundColor: theme.colors.alpha(
+              item.unrealized_percent > 0 ? theme.colors.bullish : theme.colors.bearish,
+              0.1
+            ),
+            marginTop: theme.spacing.md,
+          }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.plLabel, { color: theme.colors.text.secondary }]}>
+                UNREALIZED P/L
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: theme.spacing.xs }}>
+                <PriceText
+                  value={item.unrealized_profit}
+                  size="lg"
+                  showChange
+                  colorize
+                  suffix=" SEK"
+                />
+                <PriceText
+                  value={item.unrealized_percent}
+                  size="md"
+                  showChange
+                  colorize
+                  suffix="%"
+                  style={{ marginLeft: theme.spacing.sm }}
+                />
+              </View>
+            </View>
+          </View>
         )}
 
-        <View style={styles.row}>
-          <Text style={styles.label}>Stop Loss:</Text>
-          <Text style={styles.value}>{item.stop_loss} SEK</Text>
+        {/* Stop Loss */}
+        <View style={[styles.row, { marginTop: theme.spacing.md }]}>
+          <Text style={[styles.label, { color: theme.colors.text.secondary }]}>
+            Stop Loss
+          </Text>
+          <PriceText value={item.stop_loss} size="sm" suffix=" SEK" />
         </View>
 
+        {/* Exits */}
         {item.exits && item.exits.length > 0 && (
-          <View style={styles.exitsSection}>
-            <Text style={styles.exitsTitle}>Exits:</Text>
+          <View style={[styles.exitsSection, {
+            borderTopColor: theme.colors.border.primary,
+            marginTop: theme.spacing.md,
+            paddingTop: theme.spacing.md,
+          }]}>
+            <Text style={[styles.exitsTitle, { color: theme.colors.text.secondary }]}>
+              EXIT HISTORY
+            </Text>
             {item.exits.map((exit, index) => (
-              <Text key={index} style={styles.exitText}>
-                • {exit.shares} st @ {exit.price} SEK (
-                {exit.profit_percent > 0 ? '+' : ''}
-                {exit.profit_percent}%) - {exit.type}
-              </Text>
+              <View key={index} style={[styles.exitRow, { marginTop: theme.spacing.xs }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.exitText, { color: theme.colors.text.primary }]}>
+                    {exit.shares} shares @ {exit.price} SEK
+                  </Text>
+                  <Text style={[styles.exitType, { color: theme.colors.text.tertiary }]}>
+                    {exit.type}
+                  </Text>
+                </View>
+                <PriceText
+                  value={exit.profit_percent}
+                  size="sm"
+                  showChange
+                  colorize
+                  suffix="%"
+                />
+              </View>
             ))}
           </View>
         )}
-      </View>
+      </Card>
     );
   };
 
   const renderNotificationItem = ({ item }) => (
-    <View style={styles.notificationCard}>
+    <Card
+      variant="elevated"
+      style={[styles.notificationCard, {
+        borderLeftColor: theme.colors.warning || '#FF9800',
+      }]}
+    >
       <View style={styles.notifHeader}>
-        <Text style={styles.notifType}>{item.type}</Text>
-        <Text style={styles.notifTicker}>{item.ticker}</Text>
+        <Text style={[styles.notifType, { color: theme.colors.warning || '#FF9800' }]}>
+          {item.type}
+        </Text>
+        <Text style={[styles.notifTicker, { color: theme.colors.text.primary }]}>
+          {item.ticker}
+        </Text>
       </View>
-      <Text style={styles.notifAction}>{item.action}</Text>
+      <Text style={[styles.notifAction, { color: theme.colors.text.primary }]}>
+        {item.action}
+      </Text>
       {item.instruction && (
-        <Text style={styles.notifInstruction}>{item.instruction}</Text>
+        <Text style={[styles.notifInstruction, { color: theme.colors.text.secondary }]}>
+          {item.instruction}
+        </Text>
       )}
-    </View>
+    </Card>
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
+      {/* Alerts Section */}
       {notifications.length > 0 && (
-        <View style={styles.notificationsSection}>
-          <Text style={styles.sectionTitle}>ALERTS</Text>
-          <FlatList
-            data={notifications}
-            renderItem={renderNotificationItem}
-            keyExtractor={(item, index) => `${item.ticker}-${index}`}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-          />
+        <View style={[styles.notificationsSection, {
+          backgroundColor: theme.colors.alpha(theme.colors.warning || '#FF9800', 0.1),
+          borderBottomColor: theme.colors.warning || '#FF9800',
+          paddingHorizontal: theme.spacing.base,
+          paddingVertical: theme.spacing.md,
+        }]}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.warning || '#FF9800' }]}>
+            ALERTS
+          </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {notifications.map((item, index) => (
+              <View key={`${item.ticker}-${index}`} style={{ marginRight: theme.spacing.sm }}>
+                {renderNotificationItem({ item })}
+              </View>
+            ))}
+          </ScrollView>
         </View>
       )}
 
+      {/* Positions List */}
       <FlatList
         data={positions}
         renderItem={renderPositionItem}
         keyExtractor={(item) => item.ticker}
+        contentContainerStyle={{
+          padding: theme.spacing.base,
+          paddingBottom: theme.spacing.xl,
+        }}
         refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={refresh} />
+          <RefreshControl
+            refreshing={loading}
+            onRefresh={refresh}
+            tintColor={theme.colors.primary}
+          />
         }
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>Inga oppna positioner</Text>
-            <Text style={styles.emptySubtext}>
-              Lagg till positioner fran Signaler-fliken
+          <Card variant="default" style={{ marginTop: theme.spacing.xl, alignItems: 'center', padding: theme.spacing.xl }}>
+            <Text style={[styles.emptyText, { color: theme.colors.text.secondary }]}>
+              Inga öppna positioner
             </Text>
-          </View>
-        }
-        contentContainerStyle={
-          positions.length === 0 && styles.emptyList
+            <Text style={[styles.emptySubtext, { color: theme.colors.text.tertiary }]}>
+              Lägg till positioner från Signaler-fliken
+            </Text>
+          </Card>
         }
       />
     </View>
@@ -190,28 +279,19 @@ export default function PositionsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
   notificationsSection: {
-    backgroundColor: '#FFF3E0',
-    padding: 12,
     borderBottomWidth: 2,
-    borderBottomColor: '#FF9800',
   },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#E65100',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.5,
     marginBottom: 8,
   },
   notificationCard: {
-    backgroundColor: '#fff',
-    padding: 12,
-    marginRight: 12,
-    borderRadius: 8,
     minWidth: 250,
     borderLeftWidth: 4,
-    borderLeftColor: '#FF9800',
   },
   notifHeader: {
     flexDirection: 'row',
@@ -219,47 +299,33 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   notifType: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#E65100',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   notifTicker: {
     fontSize: 14,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: '700',
   },
   notifAction: {
-    fontSize: 14,
-    color: '#333',
+    fontSize: 13,
     marginBottom: 4,
   },
   notifInstruction: {
     fontSize: 12,
-    color: '#666',
     fontStyle: 'italic',
-  },
-  positionCard: {
-    backgroundColor: '#fff',
-    margin: 16,
-    marginBottom: 8,
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    alignItems: 'flex-start',
   },
   ticker: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#333',
+    marginBottom: 2,
+  },
+  subtitle: {
+    fontSize: 12,
   },
   statusBadge: {
     paddingHorizontal: 12,
@@ -267,59 +333,72 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   statusText: {
-    color: '#fff',
-    fontWeight: 'bold',
+    fontWeight: '700',
     fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  pricesRow: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  priceLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  plSection: {
+    padding: 12,
+    borderRadius: 8,
+  },
+  plLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginVertical: 4,
+    alignItems: 'center',
   },
   label: {
-    fontSize: 14,
-    color: '#666',
-  },
-  value: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   exitsSection: {
-    marginTop: 12,
-    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
   },
   exitsTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#666',
-    marginBottom: 4,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  exitRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   exitText: {
-    fontSize: 12,
-    color: '#555',
-    marginVertical: 2,
+    fontSize: 13,
   },
-  emptyList: {
-    flex: 1,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingTop: 100,
+  exitType: {
+    fontSize: 11,
+    marginTop: 2,
   },
   emptyText: {
-    fontSize: 18,
-    color: '#999',
+    fontSize: 16,
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#bbb',
     textAlign: 'center',
-    paddingHorizontal: 40,
   },
 });
