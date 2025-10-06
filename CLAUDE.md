@@ -12,7 +12,7 @@
 
 ```
 Foundation:     ██████████ 100% ✅
-Charts & Data:  ████████░░  75% 🟡
+Charts & Data:  ████████░░  80% 🟡
 Marketmate:     ░░░░░░░░░░   0%
 AI & Analytics: ░░░░░░░░░░   0%
 Social:         ░░░░░░░░░░   0%
@@ -92,7 +92,7 @@ Social:         ░░░░░░░░░░   0%
 - [x] MACD overlay
 - [x] Stochastic overlay
 - [x] Moving Averages (EMA20, SMA50)
-- [ ] Bollinger Bands
+- [x] Bollinger Bands
 - [x] Volume indicator
 - [x] Toggle indicators on/off
 - [ ] Indicator settings (periods)
@@ -399,6 +399,9 @@ Social:         ░░░░░░░░░░   0%
 - ✅ Stochastic indicator implementerad
 - ✅ Stochastic chart med %K och %D lines
 - ✅ Stochastic overbought/oversold levels (80/20)
+- ✅ Bollinger Bands implementerade
+- ✅ BB upper/middle/lower band overlays på chart
+- ✅ BB toggle control och legend
 
 ---
 

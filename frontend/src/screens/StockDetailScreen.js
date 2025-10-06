@@ -33,6 +33,9 @@ export default function StockDetailScreen({ route, navigation }) {
   const [stochData, setStochData] = useState([]);
   const [ema20Data, setEma20Data] = useState([]);
   const [sma50Data, setSma50Data] = useState([]);
+  const [bbUpperData, setBbUpperData] = useState([]);
+  const [bbMiddleData, setBbMiddleData] = useState([]);
+  const [bbLowerData, setBbLowerData] = useState([]);
   const [stockInfo, setStockInfo] = useState(null);
   const [currentPrice, setCurrentPrice] = useState(null);
   const [period, setPeriod] = useState('3mo');
@@ -42,6 +45,7 @@ export default function StockDetailScreen({ route, navigation }) {
   const [showStoch, setShowStoch] = useState(false);
   const [showEMA20, setShowEMA20] = useState(true);
   const [showSMA50, setShowSMA50] = useState(true);
+  const [showBB, setShowBB] = useState(false);
 
   const periods = [
     { label: '1M', value: '1mo' },
@@ -133,6 +137,31 @@ export default function StockDetailScreen({ route, navigation }) {
           d: item.stochastic.d,
         }));
       setStochData(stochData);
+
+      // Transform data for Bollinger Bands
+      const bbUpperData = data
+        .filter(item => item.bollinger !== undefined)
+        .map(item => ({
+          timestamp: item.timestamp,
+          value: item.bollinger.upper,
+        }));
+      setBbUpperData(bbUpperData);
+
+      const bbMiddleData = data
+        .filter(item => item.bollinger !== undefined)
+        .map(item => ({
+          timestamp: item.timestamp,
+          value: item.bollinger.middle,
+        }));
+      setBbMiddleData(bbMiddleData);
+
+      const bbLowerData = data
+        .filter(item => item.bollinger !== undefined)
+        .map(item => ({
+          timestamp: item.timestamp,
+          value: item.bollinger.lower,
+        }));
+      setBbLowerData(bbLowerData);
 
       // Get current price (last close)
       if (data.length > 0) {
@@ -421,12 +450,38 @@ export default function StockDetailScreen({ route, navigation }) {
             STOCH
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setShowBB(!showBB)}
+          style={[
+            styles.indicatorToggle,
+            {
+              backgroundColor: showBB
+                ? theme.colors.alpha(theme.colors.bearish, 0.2)
+                : 'transparent',
+              borderColor: showBB
+                ? theme.colors.bearish
+                : theme.colors.border.primary,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.indicatorToggleText,
+              {
+                color: showBB ? theme.colors.bearish : theme.colors.text.secondary,
+                fontWeight: showBB ? '600' : '400',
+              },
+            ]}
+          >
+            BB
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Chart */}
       <View style={[styles.chartContainer, { marginTop: theme.spacing.md }]}>
-        {/* MA Legend */}
-        {(showEMA20 || showSMA50) && (
+        {/* MA & BB Legend */}
+        {(showEMA20 || showSMA50 || showBB) && (
           <View style={[styles.maLegend, { paddingHorizontal: theme.spacing.base, marginBottom: theme.spacing.xs }]}>
             {showEMA20 && ema20Data.length > 0 && (
               <View style={styles.maLegendItem}>
@@ -441,6 +496,14 @@ export default function StockDetailScreen({ route, navigation }) {
                 <View style={[styles.maLegendLine, { backgroundColor: theme.colors.warning }]} />
                 <Text style={[styles.maLegendText, { color: theme.colors.text.secondary }]}>
                   SMA50: {sma50Data[sma50Data.length - 1].value.toFixed(2)}
+                </Text>
+              </View>
+            )}
+            {showBB && bbUpperData.length > 0 && (
+              <View style={styles.maLegendItem}>
+                <View style={[styles.maLegendLine, { backgroundColor: theme.colors.alpha(theme.colors.bearish, 0.6) }]} />
+                <Text style={[styles.maLegendText, { color: theme.colors.text.secondary }]}>
+                  BB: {bbUpperData[bbUpperData.length - 1].value.toFixed(2)} / {bbLowerData[bbLowerData.length - 1].value.toFixed(2)}
                 </Text>
               </View>
             )}
@@ -493,6 +556,33 @@ export default function StockDetailScreen({ route, navigation }) {
               </LineChart>
             </LineChart.Provider>
           </View>
+        )}
+
+        {/* Bollinger Bands Overlays */}
+        {showBB && bbUpperData.length > 0 && (
+          <>
+            <View style={{ position: 'absolute', top: 0 }}>
+              <LineChart.Provider data={bbUpperData}>
+                <LineChart width={width} height={300}>
+                  <LineChart.Path color={theme.colors.alpha(theme.colors.bearish, 0.6)} width={1} />
+                </LineChart>
+              </LineChart.Provider>
+            </View>
+            <View style={{ position: 'absolute', top: 0 }}>
+              <LineChart.Provider data={bbMiddleData}>
+                <LineChart width={width} height={300}>
+                  <LineChart.Path color={theme.colors.alpha(theme.colors.text.tertiary, 0.6)} width={1} />
+                </LineChart>
+              </LineChart.Provider>
+            </View>
+            <View style={{ position: 'absolute', top: 0 }}>
+              <LineChart.Provider data={bbLowerData}>
+                <LineChart width={width} height={300}>
+                  <LineChart.Path color={theme.colors.alpha(theme.colors.bullish, 0.6)} width={1} />
+                </LineChart>
+              </LineChart.Provider>
+            </View>
+          </>
         )}
 
         {/* Volume Chart */}

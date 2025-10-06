@@ -91,6 +91,28 @@ class TechnicalAnalyzer:
         return data['Close'].rolling(window=period).mean()
 
     @staticmethod
+    def calculate_bollinger_bands(data: pd.DataFrame, period: int = 20,
+                                  std_dev: float = 2.0) -> Tuple[pd.Series, pd.Series, pd.Series]:
+        """
+        Beraknar Bollinger Bands
+
+        Args:
+            data: DataFrame med 'Close' kolumn
+            period: Period for SMA (default 20)
+            std_dev: Antal standardavvikelser (default 2.0)
+
+        Returns:
+            Tuple (upper_band, middle_band, lower_band)
+        """
+        middle_band = data['Close'].rolling(window=period).mean()
+        std = data['Close'].rolling(window=period).std()
+
+        upper_band = middle_band + (std_dev * std)
+        lower_band = middle_band - (std_dev * std)
+
+        return upper_band, middle_band, lower_band
+
+    @staticmethod
     def detect_divergence(price: pd.Series, indicator: pd.Series,
                          window: int = 20) -> str:
         """

@@ -100,6 +100,7 @@ def get_historical_data():
     ema_20 = analyzer.calculate_ema(df, 20)
     sma_50 = analyzer.calculate_sma(df, 50)
     k_percent, d_percent = analyzer.calculate_stochastic(df)
+    bb_upper, bb_middle, bb_lower = analyzer.calculate_bollinger_bands(df)
 
     # Convert DataFrame to JSON-friendly format
     data = []
@@ -139,6 +140,14 @@ def get_historical_data():
             data_point['stochastic'] = {
                 'k': float(k_percent.iloc[idx]),
                 'd': float(d_percent.iloc[idx])
+            }
+
+        # Add bollinger bands
+        if not pd.isna(bb_upper.iloc[idx]) and not pd.isna(bb_middle.iloc[idx]) and not pd.isna(bb_lower.iloc[idx]):
+            data_point['bollinger'] = {
+                'upper': float(bb_upper.iloc[idx]),
+                'middle': float(bb_middle.iloc[idx]),
+                'lower': float(bb_lower.iloc[idx])
             }
 
         data.append(data_point)
