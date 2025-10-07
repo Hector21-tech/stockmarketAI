@@ -1,6 +1,6 @@
 /**
  * Stock Detail Screen
- * Full-screen chart with technical analysis
+ * Simplified version with react-native-gifted-charts for Expo Go compatibility
  */
 
 import React, { useState, useEffect } from 'react';
@@ -12,8 +12,10 @@ import {
   ActivityIndicator,
   Dimensions,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
-import { LineChart, CandlestickChart } from 'react-native-wagmi-charts';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LineChart, BarChart } from 'react-native-gifted-charts';
 import { useTheme } from '../theme/ThemeContext';
 import { Card, PriceText, Button } from '../components';
 import { api } from '../api/client';
@@ -26,174 +28,188 @@ export default function StockDetailScreen({ route, navigation }) {
 
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState([]);
-  const [candleData, setCandleData] = useState([]);
   const [volumeData, setVolumeData] = useState([]);
   const [rsiData, setRsiData] = useState([]);
-  const [macdData, setMacdData] = useState([]);
-  const [stochData, setStochData] = useState([]);
-  const [ema20Data, setEma20Data] = useState([]);
-  const [sma50Data, setSma50Data] = useState([]);
-  const [bbUpperData, setBbUpperData] = useState([]);
-  const [bbMiddleData, setBbMiddleData] = useState([]);
-  const [bbLowerData, setBbLowerData] = useState([]);
+  const [macdData, setMacdData] = useState({ macd: [], signal: [] });
+  const [stochasticData, setStochasticData] = useState({ k: [], d: [] });
   const [stockInfo, setStockInfo] = useState(null);
   const [currentPrice, setCurrentPrice] = useState(null);
   const [period, setPeriod] = useState('3mo');
-  const [interval, setInterval] = useState('1d');
-  const [chartType, setChartType] = useState('candle'); // 'line' or 'candle'
-  const [showRSI, setShowRSI] = useState(true);
-  const [showMACD, setShowMACD] = useState(false);
-  const [showStoch, setShowStoch] = useState(false);
-  const [showEMA20, setShowEMA20] = useState(true);
-  const [showSMA50, setShowSMA50] = useState(true);
-  const [showBB, setShowBB] = useState(false);
+  const [bottomIndicator, setBottomIndicator] = useState('volume'); // 'volume' | 'rsi' | 'macd' | 'stochastic' | 'none'
+  const [isInWatchlist, setIsInWatchlist] = useState(false);
 
   const periods = [
-    { label: '1D', value: '1d' },
-    { label: '5D', value: '5d' },
+    { label: '1V', value: '5d' },
     { label: '1M', value: '1mo' },
     { label: '3M', value: '3mo' },
     { label: '6M', value: '6mo' },
-    { label: '1Y', value: '1y' },
-    { label: 'MAX', value: 'max' },
+    { label: 'ÅR', value: 'ytd' },
+    { label: '1Å', value: '1y' },
+    { label: '5Å', value: '5y' },
   ];
-
-  const intervals = [
-    { label: '1H', value: '1h', availableFor: ['1d', '5d'] },
-    { label: '4H', value: '4h', availableFor: ['1d', '5d', '1mo'] },
-    { label: 'Daily', value: '1d', availableFor: ['1mo', '3mo', '6mo', '1y', 'max'] },
-    { label: 'Weekly', value: '1wk', availableFor: ['6mo', '1y', 'max'] },
-  ];
-
-  // Filter intervals based on selected period
-  const availableIntervals = intervals.filter(int =>
-    int.availableFor.includes(period)
-  );
 
   useEffect(() => {
     loadStockData();
-  }, [ticker, period, interval]);
+    checkWatchlistStatus();
+  }, [ticker, period]);
 
-  // Auto-adjust interval when period changes
-  useEffect(() => {
-    const validIntervals = intervals.filter(int => int.availableFor.includes(period));
-    if (!validIntervals.find(int => int.value === interval)) {
-      // Set default interval for the period
-      if (period === '1d' || period === '5d') {
-        setInterval('1h');
-      } else if (period === '6mo' || period === '1y' || period === 'max') {
-        setInterval('1d');
-      } else {
-        setInterval('1d');
+  const checkWatchlistStatus = async () => {
+    try {
+      const watchlistJson = await AsyncStorage.getItem('watchlist');
+      if (watchlistJson) {
+        const watchlist = JSON.parse(watchlistJson);
+        // Watchlist is an array of strings (tickers)
+        setIsInWatchlist(watchlist.includes(ticker));
       }
+    } catch (error) {
+      console.error('Error checking watchlist:', error);
     }
-  }, [period]);
+  };
+
+  const toggleWatchlist = async () => {
+    try {
+      const watchlistJson = await AsyncStorage.getItem('watchlist');
+      let watchlist = watchlistJson ? JSON.parse(watchlistJson) : [];
+
+      if (isInWatchlist) {
+        // Remove from watchlist
+        watchlist = watchlist.filter(item => item !== ticker);
+        Alert.alert('Borttagen', `${ticker} borttagen från watchlist`);
+      } else {
+        // Add to watchlist
+        watchlist.push(ticker);
+        Alert.alert('Tillagd!', `${ticker} tillagd i watchlist`);
+      }
+
+      await AsyncStorage.setItem('watchlist', JSON.stringify(watchlist));
+      setIsInWatchlist(!isInWatchlist);
+    } catch (error) {
+      console.error('Error toggling watchlist:', error);
+      Alert.alert('Fel', 'Kunde inte uppdatera watchlist');
+    }
+  };
+
+  // Helper function to format date labels in Swedish (Avanza-style)
+  const formatDateLabel = (timestamp, periodType) => {
+    if (!timestamp) return '';
+
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return ''; // Invalid date
+
+    const day = date.getDate();
+    const monthNames = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+    const month = monthNames[date.getMonth()];
+    const weekdayNames = ['sön', 'mån', 'tis', 'ons', 'tor', 'fre', 'lör'];
+    const weekday = weekdayNames[date.getDay()];
+    const year = String(date.getFullYear()).slice(-2); // Last 2 digits of year (e.g., "25")
+    const fullYear = date.getFullYear(); // Full year (e.g., "2025")
+
+    if (periodType === '5d') {
+      // Very short: weekday + day (e.g., "mån 6")
+      return `${weekday} ${day}`;
+    } else if (periodType === '1mo') {
+      // Short: day + month (e.g., "6 jan")
+      return `${day} ${month}`;
+    } else if (periodType === '3mo' || periodType === '6mo' || periodType === 'ytd' || periodType === '1y') {
+      // Medium/Long: month + year (e.g., "jan 25") - AVANZA STYLE
+      return `${month} ${year}`;
+    } else {
+      // Very long (5y): full year (e.g., "2020")
+      return String(fullYear);
+    }
+  };
+
+  // Helper function to format date range display (always shows day + month)
+  const formatDateRange = (timestamp) => {
+    if (!timestamp) return '';
+
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return '';
+
+    const day = date.getDate();
+    const monthNames = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+    const month = monthNames[date.getMonth()];
+    return `${day} ${month}`;
+  };
 
   const loadStockData = async () => {
-    setLoading(true);
     try {
-      // Load historical data for chart
-      const histResponse = await api.getHistoricalData(ticker, period, interval, market);
-      const data = histResponse.data.data || [];
+      setLoading(true);
 
-      // Transform data for line chart
-      const lineData = data.map(item => ({
-        timestamp: item.timestamp,
-        value: item.close,
-      }));
+      // Always use daily candles for swing trading
+      const interval = '1d';
+
+      // Fetch historical data
+      const response = await api.getHistoricalData(ticker, period, interval, market);
+      const data = response.data.data;
+
+      console.log(`📊 Chart data loaded: ${data.length} points for period ${period}`);
+
+      // Transform for line chart - NO LABELS (we'll render custom labels outside chart)
+      const lineData = data.map((item, index) => {
+        return {
+          value: item.close,
+          label: '', // Empty - we render labels separately
+          dataPointText: item.close.toFixed(2),
+          timestamp: item.timestamp,
+        };
+      });
       setChartData(lineData);
+      console.log('✅ LineChart data set:', lineData.length, 'points');
 
-      // Transform data for candlestick chart
-      const candleData = data.map(item => ({
-        timestamp: item.timestamp,
-        open: item.open,
-        high: item.high,
-        low: item.low,
-        close: item.close,
-      }));
-      setCandleData(candleData);
-
-      // Transform data for volume bars
-      const volData = data.map(item => ({
-        timestamp: item.timestamp,
-        value: item.volume,
-      }));
+      // Transform for volume chart - NO LABELS (we'll render custom labels outside chart)
+      const volData = data.map((item, index) => {
+        return {
+          value: item.volume / 1000000,
+          label: '', // Empty - we render labels separately
+          frontColor: theme.colors.alpha(theme.colors.primary, 0.6),
+        };
+      });
       setVolumeData(volData);
+      console.log('✅ Volume data set:', volData.length, 'bars');
 
-      // Transform data for RSI
-      const rsiData = data
+      // Transform RSI data
+      const rsi = data
         .filter(item => item.rsi !== undefined)
-        .map(item => ({
-          timestamp: item.timestamp,
+        .map((item, index) => ({
           value: item.rsi,
+          label: '',
         }));
-      setRsiData(rsiData);
+      setRsiData(rsi);
 
-      // Transform data for MACD
-      const macdData = data
+      // Transform MACD data
+      const macdLine = data
         .filter(item => item.macd !== undefined)
-        .map(item => ({
-          timestamp: item.timestamp,
-          macd: item.macd.macd,
-          signal: item.macd.signal,
-          histogram: item.macd.histogram,
+        .map((item, index) => ({
+          value: item.macd.macd,
+          label: '',
         }));
-      setMacdData(macdData);
-
-      // Transform data for EMA20
-      const ema20Data = data
-        .filter(item => item.ema20 !== undefined)
-        .map(item => ({
-          timestamp: item.timestamp,
-          value: item.ema20,
+      const signalLine = data
+        .filter(item => item.macd !== undefined)
+        .map((item, index) => ({
+          value: item.macd.signal,
+          label: '',
         }));
-      setEma20Data(ema20Data);
+      setMacdData({ macd: macdLine, signal: signalLine });
+      console.log('✅ MACD data set:', macdLine.length, 'points');
 
-      // Transform data for SMA50
-      const sma50Data = data
-        .filter(item => item.sma50 !== undefined)
-        .map(item => ({
-          timestamp: item.timestamp,
-          value: item.sma50,
-        }));
-      setSma50Data(sma50Data);
-
-      // Transform data for Stochastic
-      const stochData = data
+      // Transform Stochastic data
+      const kLine = data
         .filter(item => item.stochastic !== undefined)
-        .map(item => ({
-          timestamp: item.timestamp,
-          k: item.stochastic.k,
-          d: item.stochastic.d,
+        .map((item, index) => ({
+          value: item.stochastic.k,
+          label: '',
         }));
-      setStochData(stochData);
-
-      // Transform data for Bollinger Bands
-      const bbUpperData = data
-        .filter(item => item.bollinger !== undefined)
-        .map(item => ({
-          timestamp: item.timestamp,
-          value: item.bollinger.upper,
+      const dLine = data
+        .filter(item => item.stochastic !== undefined)
+        .map((item, index) => ({
+          value: item.stochastic.d,
+          label: '',
         }));
-      setBbUpperData(bbUpperData);
+      setStochasticData({ k: kLine, d: dLine });
+      console.log('✅ Stochastic data set:', kLine.length, 'points');
 
-      const bbMiddleData = data
-        .filter(item => item.bollinger !== undefined)
-        .map(item => ({
-          timestamp: item.timestamp,
-          value: item.bollinger.middle,
-        }));
-      setBbMiddleData(bbMiddleData);
-
-      const bbLowerData = data
-        .filter(item => item.bollinger !== undefined)
-        .map(item => ({
-          timestamp: item.timestamp,
-          value: item.bollinger.lower,
-        }));
-      setBbLowerData(bbLowerData);
-
-      // Get current price (last close)
+      // Get current price
       if (data.length > 0) {
         setCurrentPrice(data[data.length - 1].close);
       }
@@ -203,13 +219,18 @@ export default function StockDetailScreen({ route, navigation }) {
       setStockInfo(infoResponse.data);
     } catch (error) {
       console.error('Error loading stock data:', error);
+      Alert.alert('Error', 'Failed to load chart data');
     } finally {
       setLoading(false);
     }
   };
 
-  const formatCurrency = (value) => {
-    return `${value?.toFixed(2)} SEK`;
+  const handleBuy = () => {
+    navigation.navigate('Signals');
+  };
+
+  const handleSell = () => {
+    navigation.navigate('Positions');
   };
 
   if (loading) {
@@ -226,10 +247,24 @@ export default function StockDetailScreen({ route, navigation }) {
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
       {/* Header */}
-      <View style={[styles.header, { paddingHorizontal: theme.spacing.base, paddingTop: theme.spacing.md }]}>
-        <Text style={[styles.ticker, { color: theme.colors.text.primary, ...theme.typography.styles.h3 }]}>
-          {ticker}
-        </Text>
+      <View style={[styles.header, { paddingHorizontal: theme.spacing.base }]}>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={[styles.ticker, { color: theme.colors.text.primary }]}>
+              {ticker}
+            </Text>
+            {stockInfo?.name && (
+              <Text style={[styles.companyName, { color: theme.colors.text.secondary }]}>
+                {stockInfo.name}
+              </Text>
+            )}
+          </View>
+          <TouchableOpacity onPress={toggleWatchlist}>
+            <Text style={{ fontSize: 24, color: theme.colors.primary }}>
+              {isInWatchlist ? '★' : '☆'}
+            </Text>
+          </TouchableOpacity>
+        </View>
         {currentPrice && (
           <PriceText
             value={currentPrice}
@@ -240,75 +275,13 @@ export default function StockDetailScreen({ route, navigation }) {
         )}
       </View>
 
-      {/* Chart Type Selector */}
-      <View style={[styles.chartTypeSelector, { paddingHorizontal: theme.spacing.base, marginTop: theme.spacing.md }]}>
-        <TouchableOpacity
-          onPress={() => setChartType('candle')}
-          style={[
-            styles.chartTypeButton,
-            {
-              backgroundColor:
-                chartType === 'candle'
-                  ? theme.colors.alpha(theme.colors.primary, 0.2)
-                  : 'transparent',
-              borderColor:
-                chartType === 'candle'
-                  ? theme.colors.primary
-                  : theme.colors.border.primary,
-            },
-          ]}
-        >
-          <Text
-            style={[
-              styles.chartTypeText,
-              {
-                color:
-                  chartType === 'candle'
-                    ? theme.colors.primary
-                    : theme.colors.text.secondary,
-                fontWeight: chartType === 'candle' ? '700' : '400',
-              },
-            ]}
-          >
-            Candles
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={() => setChartType('line')}
-          style={[
-            styles.chartTypeButton,
-            {
-              backgroundColor:
-                chartType === 'line'
-                  ? theme.colors.alpha(theme.colors.primary, 0.2)
-                  : 'transparent',
-              borderColor:
-                chartType === 'line'
-                  ? theme.colors.primary
-                  : theme.colors.border.primary,
-            },
-          ]}
-        >
-          <Text
-            style={[
-              styles.chartTypeText,
-              {
-                color:
-                  chartType === 'line'
-                    ? theme.colors.primary
-                    : theme.colors.text.secondary,
-                fontWeight: chartType === 'line' ? '700' : '400',
-              },
-            ]}
-          >
-            Line
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Period Selector */}
-      <View style={[styles.periodSelector, { paddingHorizontal: theme.spacing.base, marginTop: theme.spacing.sm }]}>
+      {/* Period Selector - Horizontal Scroll */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={[styles.periodSelector, { paddingHorizontal: theme.spacing.base }]}
+        contentContainerStyle={{ gap: 8 }}
+      >
         {periods.map((p) => (
           <TouchableOpacity
             key={p.value}
@@ -320,22 +293,18 @@ export default function StockDetailScreen({ route, navigation }) {
                   period === p.value
                     ? theme.colors.alpha(theme.colors.primary, 0.2)
                     : 'transparent',
-                borderColor:
-                  period === p.value
-                    ? theme.colors.primary
-                    : theme.colors.border.primary,
+                borderColor: theme.colors.border.primary,
               },
             ]}
           >
             <Text
               style={[
-                styles.periodText,
+                styles.periodButtonText,
                 {
                   color:
                     period === p.value
                       ? theme.colors.primary
                       : theme.colors.text.secondary,
-                  fontWeight: period === p.value ? '700' : '400',
                 },
               ]}
             >
@@ -343,476 +312,498 @@ export default function StockDetailScreen({ route, navigation }) {
             </Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
 
-      {/* Interval Selector */}
-      {availableIntervals.length > 1 && (
-        <View style={[styles.intervalSelector, { paddingHorizontal: theme.spacing.base, marginTop: theme.spacing.xs }]}>
-          <Text style={[styles.intervalLabel, { color: theme.colors.text.secondary }]}>
-            Interval:
-          </Text>
-          {availableIntervals.map((int) => (
-            <TouchableOpacity
-              key={int.value}
-              onPress={() => setInterval(int.value)}
+      {/* Indicator Selector */}
+      <View style={[styles.indicatorSelector, { paddingHorizontal: theme.spacing.base, marginTop: theme.spacing.sm }]}>
+        {[
+          { label: 'Volume', value: 'volume' },
+          { label: 'RSI', value: 'rsi' },
+          { label: 'MACD', value: 'macd' },
+          { label: 'Stoch', value: 'stochastic' },
+        ].map((ind) => (
+          <TouchableOpacity
+            key={ind.value}
+            onPress={() => setBottomIndicator(ind.value)}
+            style={[
+              styles.indicatorButton,
+              {
+                backgroundColor:
+                  bottomIndicator === ind.value
+                    ? theme.colors.alpha(theme.colors.primary, 0.2)
+                    : theme.colors.background.secondary,
+                borderColor: theme.colors.border.primary,
+              },
+            ]}
+          >
+            <Text
               style={[
-                styles.intervalButton,
+                styles.indicatorButtonText,
                 {
-                  backgroundColor:
-                    interval === int.value
-                      ? theme.colors.alpha(theme.colors.bullish, 0.2)
-                      : 'transparent',
-                  borderColor:
-                    interval === int.value
-                      ? theme.colors.bullish
-                      : theme.colors.border.primary,
+                  color:
+                    bottomIndicator === ind.value
+                      ? theme.colors.primary
+                      : theme.colors.text.secondary,
                 },
               ]}
             >
-              <Text
-                style={[
-                  styles.intervalText,
-                  {
-                    color:
-                      interval === int.value
-                        ? theme.colors.bullish
-                        : theme.colors.text.secondary,
-                    fontWeight: interval === int.value ? '600' : '400',
-                  },
-                ]}
-              >
-                {int.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+              {ind.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Combined Price & Volume Chart */}
+      <Card style={{ margin: theme.spacing.base }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.md }}>
+          <Text style={[styles.chartTitle, { color: theme.colors.text.primary }]}>
+            Price Chart
+          </Text>
+          {chartData.length > 1 && (
+            <Text style={{ color: theme.colors.text.tertiary, fontSize: 10 }}>
+              {formatDateRange(chartData[0].timestamp || Date.now())}
+              {' - '}
+              {formatDateRange(chartData[chartData.length - 1].timestamp || Date.now())}
+            </Text>
+          )}
         </View>
-      )}
+        {chartData.length > 0 ? (
+          (() => {
+            const values = chartData.map(d => d.value);
+            const minPrice = Math.min(...values);
+            const maxPrice = Math.max(...values);
+            const priceRange = maxPrice - minPrice;
+            const padding = priceRange * 0.05;
 
-      {/* Indicator Toggles */}
-      <View style={[styles.indicatorToggles, { paddingHorizontal: theme.spacing.base, marginTop: theme.spacing.sm }]}>
-        <Text style={[styles.indicatorLabel, { color: theme.colors.text.secondary }]}>
-          Indicators:
-        </Text>
-        <TouchableOpacity
-          onPress={() => setShowEMA20(!showEMA20)}
-          style={[
-            styles.indicatorToggle,
-            {
-              backgroundColor: showEMA20
-                ? theme.colors.alpha(theme.colors.bullish, 0.2)
-                : 'transparent',
-              borderColor: showEMA20
-                ? theme.colors.bullish
-                : theme.colors.border.primary,
-            },
-          ]}
-        >
-          <Text
-            style={[
-              styles.indicatorToggleText,
-              {
-                color: showEMA20 ? theme.colors.bullish : theme.colors.text.secondary,
-                fontWeight: showEMA20 ? '600' : '400',
-              },
-            ]}
-          >
-            EMA20
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => setShowSMA50(!showSMA50)}
-          style={[
-            styles.indicatorToggle,
-            {
-              backgroundColor: showSMA50
-                ? theme.colors.alpha(theme.colors.warning, 0.2)
-                : 'transparent',
-              borderColor: showSMA50
-                ? theme.colors.warning
-                : theme.colors.border.primary,
-            },
-          ]}
-        >
-          <Text
-            style={[
-              styles.indicatorToggleText,
-              {
-                color: showSMA50 ? theme.colors.warning : theme.colors.text.secondary,
-                fontWeight: showSMA50 ? '600' : '400',
-              },
-            ]}
-          >
-            SMA50
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => setShowRSI(!showRSI)}
-          style={[
-            styles.indicatorToggle,
-            {
-              backgroundColor: showRSI
-                ? theme.colors.alpha(theme.colors.primary, 0.2)
-                : 'transparent',
-              borderColor: showRSI
-                ? theme.colors.primary
-                : theme.colors.border.primary,
-            },
-          ]}
-        >
-          <Text
-            style={[
-              styles.indicatorToggleText,
-              {
-                color: showRSI ? theme.colors.primary : theme.colors.text.secondary,
-                fontWeight: showRSI ? '600' : '400',
-              },
-            ]}
-          >
-            RSI
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => setShowMACD(!showMACD)}
-          style={[
-            styles.indicatorToggle,
-            {
-              backgroundColor: showMACD
-                ? theme.colors.alpha(theme.colors.primary, 0.2)
-                : 'transparent',
-              borderColor: showMACD
-                ? theme.colors.primary
-                : theme.colors.border.primary,
-            },
-          ]}
-        >
-          <Text
-            style={[
-              styles.indicatorToggleText,
-              {
-                color: showMACD ? theme.colors.primary : theme.colors.text.secondary,
-                fontWeight: showMACD ? '600' : '400',
-              },
-            ]}
-          >
-            MACD
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => setShowStoch(!showStoch)}
-          style={[
-            styles.indicatorToggle,
-            {
-              backgroundColor: showStoch
-                ? theme.colors.alpha(theme.colors.primary, 0.2)
-                : 'transparent',
-              borderColor: showStoch
-                ? theme.colors.primary
-                : theme.colors.border.primary,
-            },
-          ]}
-        >
-          <Text
-            style={[
-              styles.indicatorToggleText,
-              {
-                color: showStoch ? theme.colors.primary : theme.colors.text.secondary,
-                fontWeight: showStoch ? '600' : '400',
-              },
-            ]}
-          >
-            STOCH
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => setShowBB(!showBB)}
-          style={[
-            styles.indicatorToggle,
-            {
-              backgroundColor: showBB
-                ? theme.colors.alpha(theme.colors.bearish, 0.2)
-                : 'transparent',
-              borderColor: showBB
-                ? theme.colors.bearish
-                : theme.colors.border.primary,
-            },
-          ]}
-        >
-          <Text
-            style={[
-              styles.indicatorToggleText,
-              {
-                color: showBB ? theme.colors.bearish : theme.colors.text.secondary,
-                fontWeight: showBB ? '600' : '400',
-              },
-            ]}
-          >
-            BB
-          </Text>
-        </TouchableOpacity>
-      </View>
+            console.log('📊 Chart range:', { minPrice, maxPrice, priceRange, padding });
 
-      {/* Chart */}
-      <View style={[styles.chartContainer, { marginTop: theme.spacing.md }]}>
-        {/* MA & BB Legend */}
-        {(showEMA20 || showSMA50 || showBB) && (
-          <View style={[styles.maLegend, { paddingHorizontal: theme.spacing.base, marginBottom: theme.spacing.xs }]}>
-            {showEMA20 && ema20Data.length > 0 && (
-              <View style={styles.maLegendItem}>
-                <View style={[styles.maLegendLine, { backgroundColor: theme.colors.bullish }]} />
-                <Text style={[styles.maLegendText, { color: theme.colors.text.secondary }]}>
-                  EMA20: {ema20Data[ema20Data.length - 1].value.toFixed(2)}
-                </Text>
+            return (
+              <View>
+                {/* Price Chart */}
+                <LineChart
+                  data={chartData.map(d => ({ ...d, value: d.value - minPrice + padding }))}
+                  width={width - 80}
+                  height={220}
+                  color={theme.colors.primary}
+                  thickness={2}
+                  startFillColor={theme.colors.alpha(theme.colors.primary, 0.15)}
+                  endFillColor={theme.colors.alpha(theme.colors.primary, 0.01)}
+                  startOpacity={0.3}
+                  endOpacity={0.05}
+                  areaChart
+                  curved
+                  hideDataPoints={chartData.length > 50}
+                  dataPointsColor={theme.colors.primary}
+                  dataPointsRadius={3}
+                  hideRules={false}
+                  rulesColor={theme.colors.alpha(theme.colors.border.primary, 0.3)}
+                  rulesType="solid"
+                  yAxisColor={theme.colors.border.primary}
+                  xAxisColor={theme.colors.border.primary}
+                  yAxisTextStyle={{ color: theme.colors.text.tertiary, fontSize: 11 }}
+                  xAxisLabelTextStyle={{ color: theme.colors.text.tertiary, fontSize: 10 }}
+                  noOfSections={4}
+                  maxValue={priceRange + padding * 2}
+                  formatYLabel={(value) => {
+                    const actualValue = parseFloat(value) + minPrice - padding;
+                    return actualValue.toFixed(1);
+                  }}
+                  initialSpacing={10}
+                  spacing={(width - 100) / Math.max(chartData.length - 1, 1)}
+                />
+
+                {/* Custom Date Labels - Rendered separately for perfect spacing */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginLeft: 38, marginRight: 8, marginTop: 4 }}>
+                  <Text style={{ color: theme.colors.text.tertiary, fontSize: 10 }}>
+                    {chartData.length > 0 ? formatDateLabel(chartData[0].timestamp, period) : ''}
+                  </Text>
+                  <Text style={{ color: theme.colors.text.tertiary, fontSize: 10 }}>
+                    {chartData.length > 0 ? formatDateLabel(chartData[Math.floor(chartData.length / 2)].timestamp, period) : ''}
+                  </Text>
+                  <Text style={{ color: theme.colors.text.tertiary, fontSize: 10 }}>
+                    {chartData.length > 0 ? formatDateLabel(chartData[chartData.length - 1].timestamp, period) : ''}
+                  </Text>
+                </View>
+
+                {/* Bottom Indicator Panel */}
+                {bottomIndicator !== 'none' && (
+                  <View style={{ marginTop: theme.spacing.md }}>
+                    {/* Volume */}
+                    {bottomIndicator === 'volume' && volumeData.length > 0 && (
+                      <View>
+                        <Text style={[styles.indicatorLabel, { color: theme.colors.text.tertiary, fontSize: 10, marginBottom: 6 }]}>
+                          Volume (M)
+                        </Text>
+                        <BarChart
+                          data={volumeData}
+                          width={width - 80}
+                          height={80}
+                          barWidth={Math.max(2, (width - 100) / volumeData.length - 2)}
+                          noOfSections={3}
+                          hideRules={false}
+                          rulesColor={theme.colors.alpha(theme.colors.border.primary, 0.2)}
+                          yAxisColor={theme.colors.border.primary}
+                          xAxisColor={theme.colors.border.primary}
+                          yAxisTextStyle={{ color: theme.colors.text.tertiary, fontSize: 9 }}
+                          xAxisLabelTextStyle={{ color: theme.colors.text.tertiary, fontSize: 10 }}
+                          initialSpacing={10}
+                          spacing={(width - 100) / Math.max(volumeData.length - 1, 1)}
+                          showGradient
+                          gradientColor={theme.colors.alpha(theme.colors.primary, 0.6)}
+                          maxValue={Math.max(...volumeData.map(d => d.value)) * 1.15}
+                        />
+                        {/* Custom Date Labels for Volume */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginLeft: 38, marginRight: 8, marginTop: 4 }}>
+                          <Text style={{ color: theme.colors.text.tertiary, fontSize: 10 }}>
+                            {chartData.length > 0 ? formatDateLabel(chartData[0].timestamp, period) : ''}
+                          </Text>
+                          <Text style={{ color: theme.colors.text.tertiary, fontSize: 10 }}>
+                            {chartData.length > 0 ? formatDateLabel(chartData[Math.floor(chartData.length / 2)].timestamp, period) : ''}
+                          </Text>
+                          <Text style={{ color: theme.colors.text.tertiary, fontSize: 10 }}>
+                            {chartData.length > 0 ? formatDateLabel(chartData[chartData.length - 1].timestamp, period) : ''}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+
+                    {/* RSI */}
+                    {bottomIndicator === 'rsi' && rsiData.length > 0 && (
+                      <View>
+                        <Text style={[styles.indicatorLabel, { color: theme.colors.text.tertiary, fontSize: 10, marginBottom: 6 }]}>
+                          RSI (14)
+                        </Text>
+                        <View style={{ position: 'relative' }}>
+                          {/* RSI Chart */}
+                          <LineChart
+                            data={rsiData}
+                            width={width - 80}
+                            height={100}
+                            color={theme.colors.primary}
+                            thickness={1.5}
+                            hideDataPoints
+                            hideRules={false}
+                            rulesColor={theme.colors.alpha(theme.colors.border.primary, 0.2)}
+                            yAxisColor={theme.colors.border.primary}
+                            xAxisColor={theme.colors.border.primary}
+                            yAxisTextStyle={{ color: theme.colors.text.tertiary, fontSize: 10 }}
+                            noOfSections={4}
+                            stepValue={25}
+                            maxValue={100}
+                            yAxisOffset={0}
+                            initialSpacing={10}
+                            spacing={(width - 100) / Math.max(rsiData.length - 1, 1)}
+                          />
+
+                          {/* 70 line - Overbought (dashed effect with dots) */}
+                          <View style={{
+                            position: 'absolute',
+                            left: 38,
+                            right: 8,
+                            top: '30%',
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                          }}>
+                            {[...Array(40)].map((_, i) => (
+                              <View
+                                key={i}
+                                style={{
+                                  width: 4,
+                                  height: 1,
+                                  backgroundColor: theme.colors.alpha(theme.colors.primary, 0.5),
+                                  marginRight: 4,
+                                }}
+                              />
+                            ))}
+                          </View>
+
+                          {/* 30 line - Oversold (dashed effect with dots) */}
+                          <View style={{
+                            position: 'absolute',
+                            left: 38,
+                            right: 8,
+                            bottom: '30%',
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                          }}>
+                            {[...Array(40)].map((_, i) => (
+                              <View
+                                key={i}
+                                style={{
+                                  width: 4,
+                                  height: 1,
+                                  backgroundColor: theme.colors.alpha(theme.colors.bearish, 0.5),
+                                  marginRight: 4,
+                                }}
+                              />
+                            ))}
+                          </View>
+                        </View>
+                        <View style={[styles.rsiLegend, { marginTop: 4 }]}>
+                          <Text style={{ color: theme.colors.primary, fontSize: 10 }}>Overbought (70)</Text>
+                          <Text style={{ color: theme.colors.bearish, fontSize: 10 }}>Oversold (30)</Text>
+                        </View>
+                        {/* Custom Date Labels for RSI */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginLeft: 38, marginRight: 8, marginTop: 8 }}>
+                          <Text style={{ color: theme.colors.text.tertiary, fontSize: 10 }}>
+                            {chartData.length > 0 ? formatDateLabel(chartData[0].timestamp, period) : ''}
+                          </Text>
+                          <Text style={{ color: theme.colors.text.tertiary, fontSize: 10 }}>
+                            {chartData.length > 0 ? formatDateLabel(chartData[Math.floor(chartData.length / 2)].timestamp, period) : ''}
+                          </Text>
+                          <Text style={{ color: theme.colors.text.tertiary, fontSize: 10 }}>
+                            {chartData.length > 0 ? formatDateLabel(chartData[chartData.length - 1].timestamp, period) : ''}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+
+                    {/* MACD */}
+                    {bottomIndicator === 'macd' && macdData.macd.length > 0 && (
+                      <View>
+                        <Text style={[styles.indicatorLabel, { color: theme.colors.text.tertiary, fontSize: 10, marginBottom: 6 }]}>
+                          MACD (12, 26, 9)
+                        </Text>
+                        <View style={{ position: 'relative' }}>
+                          {/* MACD Line */}
+                          <LineChart
+                            data={macdData.macd}
+                            width={width - 80}
+                            height={100}
+                            color={theme.colors.primary}
+                            thickness={1.5}
+                            hideDataPoints
+                            hideRules={false}
+                            rulesColor={theme.colors.alpha(theme.colors.border.primary, 0.2)}
+                            yAxisColor={theme.colors.border.primary}
+                            xAxisColor={theme.colors.border.primary}
+                            yAxisTextStyle={{ color: theme.colors.text.tertiary, fontSize: 10 }}
+                            noOfSections={4}
+                            initialSpacing={10}
+                            spacing={(width - 100) / Math.max(macdData.macd.length - 1, 1)}
+                          />
+
+                          {/* Signal Line Overlay */}
+                          <View style={{ position: 'absolute', top: 0, left: 0 }}>
+                            <LineChart
+                              data={macdData.signal}
+                              width={width - 80}
+                              height={100}
+                              color="#FF9500"
+                              thickness={1.5}
+                              hideDataPoints
+                              hideRules
+                              hideAxes
+                              noOfSections={4}
+                              initialSpacing={10}
+                              spacing={(width - 100) / Math.max(macdData.signal.length - 1, 1)}
+                            />
+                          </View>
+
+                          {/* Zero line (dashed) */}
+                          <View style={{
+                            position: 'absolute',
+                            left: 38,
+                            right: 8,
+                            top: '50%',
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                          }}>
+                            {[...Array(40)].map((_, i) => (
+                              <View
+                                key={i}
+                                style={{
+                                  width: 4,
+                                  height: 1,
+                                  backgroundColor: theme.colors.alpha(theme.colors.text.tertiary, 0.3),
+                                  marginRight: 4,
+                                }}
+                              />
+                            ))}
+                          </View>
+                        </View>
+                        <View style={[styles.rsiLegend, { marginTop: 4 }]}>
+                          <Text style={{ color: theme.colors.primary, fontSize: 10 }}>MACD Line</Text>
+                          <Text style={{ color: '#FF9500', fontSize: 10 }}>Signal Line</Text>
+                        </View>
+                        {/* Custom Date Labels for MACD */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginLeft: 38, marginRight: 8, marginTop: 8 }}>
+                          <Text style={{ color: theme.colors.text.tertiary, fontSize: 10 }}>
+                            {chartData.length > 0 ? formatDateLabel(chartData[0].timestamp, period) : ''}
+                          </Text>
+                          <Text style={{ color: theme.colors.text.tertiary, fontSize: 10 }}>
+                            {chartData.length > 0 ? formatDateLabel(chartData[Math.floor(chartData.length / 2)].timestamp, period) : ''}
+                          </Text>
+                          <Text style={{ color: theme.colors.text.tertiary, fontSize: 10 }}>
+                            {chartData.length > 0 ? formatDateLabel(chartData[chartData.length - 1].timestamp, period) : ''}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+
+                    {/* Stochastic */}
+                    {bottomIndicator === 'stochastic' && stochasticData.k.length > 0 && (
+                      <View>
+                        <Text style={[styles.indicatorLabel, { color: theme.colors.text.tertiary, fontSize: 10, marginBottom: 6 }]}>
+                          Stochastic (14, 3)
+                        </Text>
+                        <View style={{ position: 'relative' }}>
+                          {/* %K Line */}
+                          <LineChart
+                            data={stochasticData.k}
+                            width={width - 80}
+                            height={100}
+                            color={theme.colors.primary}
+                            thickness={1.5}
+                            hideDataPoints
+                            hideRules={false}
+                            rulesColor={theme.colors.alpha(theme.colors.border.primary, 0.2)}
+                            yAxisColor={theme.colors.border.primary}
+                            xAxisColor={theme.colors.border.primary}
+                            yAxisTextStyle={{ color: theme.colors.text.tertiary, fontSize: 10 }}
+                            noOfSections={4}
+                            stepValue={25}
+                            maxValue={100}
+                            yAxisOffset={0}
+                            initialSpacing={10}
+                            spacing={(width - 100) / Math.max(stochasticData.k.length - 1, 1)}
+                          />
+
+                          {/* %D Line Overlay */}
+                          <View style={{ position: 'absolute', top: 0, left: 0 }}>
+                            <LineChart
+                              data={stochasticData.d}
+                              width={width - 80}
+                              height={100}
+                              color="#FF9500"
+                              thickness={1.5}
+                              hideDataPoints
+                              hideRules
+                              hideAxes
+                              noOfSections={4}
+                              stepValue={25}
+                              maxValue={100}
+                              yAxisOffset={0}
+                              initialSpacing={10}
+                              spacing={(width - 100) / Math.max(stochasticData.d.length - 1, 1)}
+                            />
+                          </View>
+
+                          {/* 80 line - Overbought (dashed) */}
+                          <View style={{
+                            position: 'absolute',
+                            left: 38,
+                            right: 8,
+                            top: '20%',
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                          }}>
+                            {[...Array(40)].map((_, i) => (
+                              <View
+                                key={i}
+                                style={{
+                                  width: 4,
+                                  height: 1,
+                                  backgroundColor: theme.colors.alpha(theme.colors.primary, 0.5),
+                                  marginRight: 4,
+                                }}
+                              />
+                            ))}
+                          </View>
+
+                          {/* 20 line - Oversold (dashed) */}
+                          <View style={{
+                            position: 'absolute',
+                            left: 38,
+                            right: 8,
+                            bottom: '20%',
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                          }}>
+                            {[...Array(40)].map((_, i) => (
+                              <View
+                                key={i}
+                                style={{
+                                  width: 4,
+                                  height: 1,
+                                  backgroundColor: theme.colors.alpha(theme.colors.bearish, 0.5),
+                                  marginRight: 4,
+                                }}
+                              />
+                            ))}
+                          </View>
+                        </View>
+                        <View style={{ marginTop: 4 }}>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <Text style={{ color: theme.colors.primary, fontSize: 10 }}>%K (Fast)</Text>
+                            <Text style={{ color: '#FF9500', fontSize: 10 }}>%D (Slow)</Text>
+                          </View>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                            <Text style={{ color: theme.colors.primary, fontSize: 10 }}>Overbought (80)</Text>
+                            <Text style={{ color: theme.colors.bearish, fontSize: 10 }}>Oversold (20)</Text>
+                          </View>
+                        </View>
+                        {/* Custom Date Labels for Stochastic */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginLeft: 38, marginRight: 8, marginTop: 8 }}>
+                          <Text style={{ color: theme.colors.text.tertiary, fontSize: 10 }}>
+                            {chartData.length > 0 ? formatDateLabel(chartData[0].timestamp, period) : ''}
+                          </Text>
+                          <Text style={{ color: theme.colors.text.tertiary, fontSize: 10 }}>
+                            {chartData.length > 0 ? formatDateLabel(chartData[Math.floor(chartData.length / 2)].timestamp, period) : ''}
+                          </Text>
+                          <Text style={{ color: theme.colors.text.tertiary, fontSize: 10 }}>
+                            {chartData.length > 0 ? formatDateLabel(chartData[chartData.length - 1].timestamp, period) : ''}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                )}
               </View>
-            )}
-            {showSMA50 && sma50Data.length > 0 && (
-              <View style={styles.maLegendItem}>
-                <View style={[styles.maLegendLine, { backgroundColor: theme.colors.warning }]} />
-                <Text style={[styles.maLegendText, { color: theme.colors.text.secondary }]}>
-                  SMA50: {sma50Data[sma50Data.length - 1].value.toFixed(2)}
-                </Text>
-              </View>
-            )}
-            {showBB && bbUpperData.length > 0 && (
-              <View style={styles.maLegendItem}>
-                <View style={[styles.maLegendLine, { backgroundColor: theme.colors.alpha(theme.colors.bearish, 0.6) }]} />
-                <Text style={[styles.maLegendText, { color: theme.colors.text.secondary }]}>
-                  BB: {bbUpperData[bbUpperData.length - 1].value.toFixed(2)} / {bbLowerData[bbLowerData.length - 1].value.toFixed(2)}
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-        {chartType === 'candle' && candleData.length > 0 ? (
-          <CandlestickChart.Provider data={candleData}>
-            <CandlestickChart width={width} height={300}>
-              <CandlestickChart.Candles
-                positiveColor={theme.colors.bullish}
-                negativeColor={theme.colors.bearish}
-              />
-              <CandlestickChart.Crosshair>
-                <CandlestickChart.Tooltip />
-              </CandlestickChart.Crosshair>
-            </CandlestickChart>
-          </CandlestickChart.Provider>
-        ) : chartType === 'line' && chartData.length > 0 ? (
-          <LineChart.Provider data={chartData}>
-            <LineChart width={width} height={300}>
-              <LineChart.Path color={theme.colors.primary} width={2} />
-              <LineChart.CursorCrosshair>
-                <LineChart.Tooltip />
-              </LineChart.CursorCrosshair>
-            </LineChart>
-          </LineChart.Provider>
+            );
+          })()
         ) : (
-          <View style={styles.emptyChart}>
-            <Text style={[styles.emptyText, { color: theme.colors.text.tertiary }]}>
-              No chart data available
-            </Text>
-          </View>
+          <Text style={{ color: theme.colors.text.tertiary, textAlign: 'center', padding: 40 }}>
+            No chart data available
+          </Text>
         )}
-
-        {/* Moving Average Overlays */}
-        {showEMA20 && ema20Data.length > 0 && (
-          <View style={{ position: 'absolute', top: 0 }}>
-            <LineChart.Provider data={ema20Data}>
-              <LineChart width={width} height={300}>
-                <LineChart.Path color={theme.colors.bullish} width={1.5} />
-              </LineChart>
-            </LineChart.Provider>
-          </View>
-        )}
-        {showSMA50 && sma50Data.length > 0 && (
-          <View style={{ position: 'absolute', top: 0 }}>
-            <LineChart.Provider data={sma50Data}>
-              <LineChart width={width} height={300}>
-                <LineChart.Path color={theme.colors.warning} width={1.5} />
-              </LineChart>
-            </LineChart.Provider>
-          </View>
-        )}
-
-        {/* Bollinger Bands Overlays */}
-        {showBB && bbUpperData.length > 0 && (
-          <>
-            <View style={{ position: 'absolute', top: 0 }}>
-              <LineChart.Provider data={bbUpperData}>
-                <LineChart width={width} height={300}>
-                  <LineChart.Path color={theme.colors.alpha(theme.colors.bearish, 0.6)} width={1} />
-                </LineChart>
-              </LineChart.Provider>
-            </View>
-            <View style={{ position: 'absolute', top: 0 }}>
-              <LineChart.Provider data={bbMiddleData}>
-                <LineChart width={width} height={300}>
-                  <LineChart.Path color={theme.colors.alpha(theme.colors.text.tertiary, 0.6)} width={1} />
-                </LineChart>
-              </LineChart.Provider>
-            </View>
-            <View style={{ position: 'absolute', top: 0 }}>
-              <LineChart.Provider data={bbLowerData}>
-                <LineChart width={width} height={300}>
-                  <LineChart.Path color={theme.colors.alpha(theme.colors.bullish, 0.6)} width={1} />
-                </LineChart>
-              </LineChart.Provider>
-            </View>
-          </>
-        )}
-
-        {/* Volume Chart */}
-        {volumeData.length > 0 && (
-          <View style={{ marginTop: theme.spacing.md }}>
-            <Text style={[styles.volumeTitle, { color: theme.colors.text.secondary, paddingHorizontal: theme.spacing.base }]}>
-              VOLUME
-            </Text>
-            <LineChart.Provider data={volumeData}>
-              <LineChart width={width} height={100}>
-                <LineChart.Path
-                  color={theme.colors.alpha(theme.colors.primary, 0.6)}
-                  width={1}
-                >
-                  <LineChart.Gradient color={theme.colors.primary} />
-                </LineChart.Path>
-              </LineChart>
-            </LineChart.Provider>
-          </View>
-        )}
-
-        {/* RSI Indicator */}
-        {showRSI && rsiData.length > 0 && (
-          <View style={{ marginTop: theme.spacing.md }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.base }}>
-              <Text style={[styles.volumeTitle, { color: theme.colors.text.secondary, marginBottom: 0 }]}>
-                RSI (14)
-              </Text>
-              {rsiData.length > 0 && (
-                <Text style={[styles.indicatorValue, { color: theme.colors.text.primary }]}>
-                  {rsiData[rsiData.length - 1].value.toFixed(2)}
-                </Text>
-              )}
-            </View>
-            <LineChart.Provider data={rsiData}>
-              <LineChart width={width} height={120}>
-                <LineChart.Path color={theme.colors.primary} width={2} />
-                <LineChart.HorizontalLine at={{ index: 0, value: 70 }} />
-                <LineChart.HorizontalLine at={{ index: 0, value: 30 }} />
-              </LineChart>
-            </LineChart.Provider>
-          </View>
-        )}
-
-        {/* MACD Indicator */}
-        {showMACD && macdData.length > 0 && (
-          <View style={{ marginTop: theme.spacing.md }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.base }}>
-              <Text style={[styles.volumeTitle, { color: theme.colors.text.secondary, marginBottom: 0 }]}>
-                MACD (12, 26, 9)
-              </Text>
-              {macdData.length > 0 && (
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <Text style={[styles.indicatorValue, { color: theme.colors.bullish }]}>
-                    {macdData[macdData.length - 1].macd?.toFixed(2) || 'N/A'}
-                  </Text>
-                  <Text style={[styles.indicatorValue, { color: theme.colors.bearish }]}>
-                    {macdData[macdData.length - 1].signal?.toFixed(2) || 'N/A'}
-                  </Text>
-                </View>
-              )}
-            </View>
-            <LineChart.Provider data={macdData.map(d => ({ timestamp: d.timestamp, value: d.macd }))}>
-              <LineChart width={width} height={120}>
-                <LineChart.Path color={theme.colors.bullish} width={2} />
-              </LineChart>
-            </LineChart.Provider>
-          </View>
-        )}
-
-        {/* Stochastic Indicator */}
-        {showStoch && stochData.length > 0 && (
-          <View style={{ marginTop: theme.spacing.md }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.base }}>
-              <Text style={[styles.volumeTitle, { color: theme.colors.text.secondary, marginBottom: 0 }]}>
-                STOCHASTIC (14, 3)
-              </Text>
-              {stochData.length > 0 && (
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <Text style={[styles.indicatorValue, { color: theme.colors.bullish }]}>
-                    %K: {stochData[stochData.length - 1].k?.toFixed(2) || 'N/A'}
-                  </Text>
-                  <Text style={[styles.indicatorValue, { color: theme.colors.bearish }]}>
-                    %D: {stochData[stochData.length - 1].d?.toFixed(2) || 'N/A'}
-                  </Text>
-                </View>
-              )}
-            </View>
-            <LineChart.Provider data={stochData.map(d => ({ timestamp: d.timestamp, value: d.k }))}>
-              <LineChart width={width} height={120}>
-                <LineChart.Path color={theme.colors.bullish} width={2} />
-                <LineChart.HorizontalLine at={{ index: 0, value: 80 }} />
-                <LineChart.HorizontalLine at={{ index: 0, value: 20 }} />
-              </LineChart>
-            </LineChart.Provider>
-          </View>
-        )}
-      </View>
+      </Card>
 
       {/* Stock Info */}
       {stockInfo && (
-        <Card variant="elevated" style={{ margin: theme.spacing.base }}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text.secondary }]}>
-            STOCK INFORMATION
+        <Card style={{ margin: theme.spacing.base }}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text.primary, marginBottom: theme.spacing.md }]}>
+            Stock Information
           </Text>
-
-          {stockInfo.longName && (
-            <View style={[styles.infoRow, { marginTop: theme.spacing.sm }]}>
-              <Text style={[styles.infoLabel, { color: theme.colors.text.secondary }]}>
-                Company
-              </Text>
-              <Text style={[styles.infoValue, { color: theme.colors.text.primary }]}>
-                {stockInfo.longName}
-              </Text>
-            </View>
-          )}
-
           {stockInfo.sector && (
             <View style={styles.infoRow}>
-              <Text style={[styles.infoLabel, { color: theme.colors.text.secondary }]}>
-                Sector
-              </Text>
-              <Text style={[styles.infoValue, { color: theme.colors.text.primary }]}>
-                {stockInfo.sector}
-              </Text>
+              <Text style={[styles.infoLabel, { color: theme.colors.text.secondary }]}>Sector:</Text>
+              <Text style={[styles.infoValue, { color: theme.colors.text.primary }]}>{stockInfo.sector}</Text>
             </View>
           )}
-
           {stockInfo.industry && (
             <View style={styles.infoRow}>
-              <Text style={[styles.infoLabel, { color: theme.colors.text.secondary }]}>
-                Industry
-              </Text>
-              <Text style={[styles.infoValue, { color: theme.colors.text.primary }]}>
-                {stockInfo.industry}
-              </Text>
-            </View>
-          )}
-
-          {stockInfo.marketCap && (
-            <View style={styles.infoRow}>
-              <Text style={[styles.infoLabel, { color: theme.colors.text.secondary }]}>
-                Market Cap
-              </Text>
-              <Text style={[styles.infoValue, { color: theme.colors.text.primary }]}>
-                {(stockInfo.marketCap / 1e9).toFixed(2)}B SEK
-              </Text>
+              <Text style={[styles.infoLabel, { color: theme.colors.text.secondary }]}>Industry:</Text>
+              <Text style={[styles.infoValue, { color: theme.colors.text.primary }]}>{stockInfo.industry}</Text>
             </View>
           )}
         </Card>
       )}
 
       {/* Action Buttons */}
-      <View style={{ paddingHorizontal: theme.spacing.base, paddingBottom: theme.spacing.xl }}>
-        <Button onPress={() => navigation.goBack()} variant="outline">
-          Back to Watchlist
-        </Button>
+      <View style={[styles.actionButtons, { paddingHorizontal: theme.spacing.base, marginBottom: theme.spacing.xl }]}>
+        <Button
+          title="Buy"
+          onPress={handleBuy}
+          variant="primary"
+          style={{ flex: 1, marginRight: theme.spacing.sm }}
+        />
+        <Button
+          title="Sell"
+          onPress={handleSell}
+          variant="secondary"
+          style={{ flex: 1, marginLeft: theme.spacing.sm }}
+        />
       </View>
     </ScrollView>
   );
@@ -829,154 +820,90 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 16,
-    fontSize: 16,
-  },
-  header: {
-    paddingBottom: 16,
-  },
-  ticker: {
-    marginBottom: 4,
-  },
-  chartTypeSelector: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  chartTypeButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    flex: 1,
-    alignItems: 'center',
-  },
-  chartTypeText: {
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-  },
-  periodSelector: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  periodButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  periodText: {
-    fontSize: 12,
-    letterSpacing: 0.5,
-  },
-  intervalSelector: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  intervalLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginRight: 4,
-  },
-  intervalButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 4,
-    borderWidth: 1,
-  },
-  intervalText: {
-    fontSize: 10,
-    letterSpacing: 0.5,
-  },
-  volumeTitle: {
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  chartContainer: {
-    alignItems: 'center',
-  },
-  emptyChart: {
-    width: width,
-    height: 300,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyText: {
     fontSize: 14,
   },
-  sectionTitle: {
+  header: {
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  ticker: {
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  companyName: {
+    fontSize: 14,
+    marginTop: 4,
+  },
+  periodSelector: {
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  periodButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    minWidth: 50,
+  },
+  periodButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  indicatorSelector: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  indicatorButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  indicatorButtonText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
+  },
+  chartTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  indicatorLabel: {
+    fontSize: 10,
+    fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 8,
+  },
+  rsiLegend: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.05)',
+    marginBottom: 8,
   },
   infoLabel: {
     fontSize: 14,
   },
   infoValue: {
     fontSize: 14,
-    fontWeight: '600',
-    flex: 1,
-    textAlign: 'right',
+    fontWeight: '500',
   },
-  indicatorToggles: {
+  actionButtons: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  indicatorLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginRight: 4,
-  },
-  indicatorToggle: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  indicatorToggleText: {
-    fontSize: 11,
-    letterSpacing: 0.5,
-  },
-  indicatorValue: {
-    fontSize: 12,
-    fontWeight: '600',
-    fontFamily: 'Courier',
-  },
-  maLegend: {
-    flexDirection: 'row',
-    gap: 12,
-    flexWrap: 'wrap',
-  },
-  maLegendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  maLegendLine: {
-    width: 16,
-    height: 2,
-    borderRadius: 1,
-  },
-  maLegendText: {
-    fontSize: 10,
-    fontWeight: '600',
-    fontFamily: 'Courier',
+    marginTop: 16,
   },
 });

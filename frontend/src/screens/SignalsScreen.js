@@ -62,7 +62,7 @@ export default function SignalsScreen() {
   };
 
   const renderSignalItem = ({ item }) => {
-    const { ticker, signal, trade_setup, analysis } = item;
+    const { ticker, name, signal, trade_setup, analysis } = item;
     const signalColor = getSignalColor(signal.strength);
 
     return (
@@ -73,8 +73,8 @@ export default function SignalsScreen() {
             <Text style={[styles.ticker, { color: theme.colors.text.primary, ...theme.typography.styles.h5 }]}>
               {ticker}
             </Text>
-            <Text style={[styles.subtitle, { color: theme.colors.text.secondary }]}>
-              Swedish Stock
+            <Text style={[styles.subtitle, { color: theme.colors.text.secondary }]} numberOfLines={1}>
+              {name || ticker}
             </Text>
           </View>
           <View style={[styles.signalBadge, { backgroundColor: theme.colors.alpha(signalColor, 0.2) }]}>

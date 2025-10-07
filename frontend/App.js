@@ -11,10 +11,12 @@ import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 
 // Screens
 import DashboardScreen from './src/screens/DashboardScreen';
+import MacroScreen from './src/screens/MacroScreen';
 import WatchlistScreen from './src/screens/WatchlistScreen';
 import StockDetailScreen from './src/screens/StockDetailScreen';
 import SignalsScreen from './src/screens/SignalsScreen';
 import PositionsScreen from './src/screens/PositionsScreen';
+import PortfolioScreen from './src/screens/PortfolioScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 
 // Services
@@ -134,6 +136,14 @@ function AppContent() {
             }}
           />
           <Tab.Screen
+            name="Macro"
+            component={MacroScreen}
+            options={{
+              title: 'Macro Dashboard',
+              tabBarLabel: 'Macro',
+            }}
+          />
+          <Tab.Screen
             name="Watchlist"
             component={WatchlistStack}
             options={{
@@ -156,6 +166,14 @@ function AppContent() {
             options={{
               title: 'Mina Positioner',
               tabBarLabel: 'Positioner',
+            }}
+          />
+          <Tab.Screen
+            name="Portfolio"
+            component={PortfolioScreen}
+            options={{
+              title: 'Portfolio Analytics',
+              tabBarLabel: 'Analytics',
             }}
           />
           <Tab.Screen

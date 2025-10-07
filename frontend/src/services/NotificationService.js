@@ -20,6 +20,12 @@ class NotificationService {
 
   // Request permissions and get push token
   async registerForPushNotifications() {
+    // Skip push notifications on web (requires VAPID key setup)
+    if (Platform.OS === 'web') {
+      console.log('Push notifications not supported on web in development mode');
+      return null;
+    }
+
     let token;
 
     if (Platform.OS === 'android') {

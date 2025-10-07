@@ -287,6 +287,123 @@ class TradeManager:
         except FileNotFoundError:
             self.positions = []
 
+    def get_portfolio_analytics(self) -> Dict:
+        """
+        Beräknar portfolio analytics baserat på alla positioner
+
+        Returns:
+            Dict med alla analytics metrics
+        """
+        closed_positions = [p for p in self.positions if p.status == "CLOSED"]
+        open_positions = [p for p in self.positions if p.status != "CLOSED"]
+
+        # Calculate metrics
+        total_realized_pl = 0
+        total_unrealized_pl = 0
+        winning_trades = 0
+        losing_trades = 0
+        total_trades = 0
+        gains = []
+        losses = []
+
+        # Closed positions - realized P/L
+        for pos in closed_positions:
+            position_pl = 0
+            for exit_record in pos.exits:
+                pl = exit_record['profit_per_share'] * exit_record['shares']
+                position_pl += pl
+                total_realized_pl += pl
+
+                if pl > 0:
+                    gains.append(exit_record['profit_percent'])
+                else:
+                    losses.append(exit_record['profit_percent'])
+
+            if position_pl > 0:
+                winning_trades += 1
+            elif position_pl < 0:
+                losing_trades += 1
+
+            total_trades += 1
+
+        # Open positions - unrealized P/L
+        for pos in open_positions:
+            current_price = self.fetcher.get_current_price(pos.ticker, pos.market)
+            if current_price:
+                unrealized_pl = (current_price - pos.entry_price) * pos.current_shares
+                total_unrealized_pl += unrealized_pl
+
+        # Calculate statistics
+        total_pl = total_realized_pl + total_unrealized_pl
+        win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
+        avg_gain = sum(gains) / len(gains) if gains else 0
+        avg_loss = sum(losses) / len(losses) if losses else 0
+        avg_trade = (sum(gains) + sum(losses)) / (len(gains) + len(losses)) if (gains or losses) else 0
+
+        # Profit factor
+        total_gains = sum([g for g in gains if g > 0])
+        total_losses = abs(sum([l for l in losses if l < 0]))
+        profit_factor = (total_gains / total_losses) if total_losses > 0 else 0
+
+        return {
+            'total_pl': round(total_realized_pl + total_unrealized_pl, 2),
+            'realized_pl': round(total_realized_pl, 2),
+            'unrealized_pl': round(total_unrealized_pl, 2),
+            'total_trades': total_trades,
+            'winning_trades': winning_trades,
+            'losing_trades': losing_trades,
+            'win_rate': round(win_rate, 2),
+            'avg_gain': round(avg_gain, 2),
+            'avg_loss': round(avg_loss, 2),
+            'avg_trade': round(avg_trade, 2),
+            'profit_factor': round(profit_factor, 2),
+            'open_positions_count': len(open_positions),
+            'closed_positions_count': len(closed_positions)
+        }
+
+    def get_trade_history(self) -> List[Dict]:
+        """
+        Returnerar en lista med alla trades (både öppna och stängda)
+
+        Returns:
+            Lista med trade dict
+        """
+        trades = []
+
+        for pos in self.positions:
+            # Add entry
+            trade = {
+                'ticker': pos.ticker,
+                'type': 'ENTRY',
+                'date': pos.entry_date,
+                'shares': pos.initial_shares,
+                'price': pos.entry_price,
+                'value': pos.initial_shares * pos.entry_price,
+                'status': pos.status
+            }
+            trades.append(trade)
+
+            # Add exits
+            for exit_record in pos.exits:
+                trade = {
+                    'ticker': pos.ticker,
+                    'type': 'EXIT',
+                    'exit_type': exit_record['type'],
+                    'date': exit_record['date'],
+                    'shares': exit_record['shares'],
+                    'price': exit_record['price'],
+                    'value': exit_record['shares'] * exit_record['price'],
+                    'pl': exit_record['profit_per_share'] * exit_record['shares'],
+                    'pl_percent': exit_record['profit_percent'],
+                    'status': 'CLOSED'
+                }
+                trades.append(trade)
+
+        # Sort by date
+        trades.sort(key=lambda x: x['date'], reverse=True)
+
+        return trades
+
 
 # Test
 if __name__ == "__main__":

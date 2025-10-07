@@ -47,9 +47,34 @@ export default function DashboardScreen({ navigation }) {
 
   const loadMarketOverview = async () => {
     try {
-      // Get prices for major indices/stocks
-      const response = await api.getMultiplePrices(['VOLVO-B', 'HM-B', 'ERIC-B'], 'SE');
-      setMarketData(response.data.prices);
+      const tickers = ['VOLVO-B', 'HM-B', 'ERIC-B'];
+      const response = await api.getMultipleQuotes(tickers, 'SE');
+      const quotesData = response.data.quotes;
+
+      // Fetch stock info (name) for each ticker
+      const marketDataWithNames = {};
+      for (const ticker of tickers) {
+        try {
+          const infoResponse = await api.getStockInfo(ticker, 'SE');
+          const quote = quotesData[ticker];
+          marketDataWithNames[ticker] = {
+            price: quote.price,
+            change: quote.change,
+            changePercent: quote.changePercent,
+            name: infoResponse.data.name || ticker,
+          };
+        } catch (error) {
+          const quote = quotesData[ticker];
+          marketDataWithNames[ticker] = {
+            price: quote.price,
+            change: quote.change,
+            changePercent: quote.changePercent,
+            name: ticker,
+          };
+        }
+      }
+
+      setMarketData(marketDataWithNames);
     } catch (error) {
       console.error('Error loading market data:', error);
     }
@@ -185,14 +210,14 @@ export default function DashboardScreen({ navigation }) {
                   <Text style={[styles.ticker, { color: theme.colors.text.primary, ...theme.typography.styles.h6 }]}>
                     {ticker}
                   </Text>
-                  <Text style={[styles.stockName, { color: theme.colors.text.tertiary }]}>
-                    Swedish Stock
+                  <Text style={[styles.stockName, { color: theme.colors.text.tertiary }]} numberOfLines={1}>
+                    {marketData[ticker]?.name || ticker}
                   </Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
-                  <PriceText value={marketData[ticker]} size="md" suffix=" SEK" />
+                  <PriceText value={marketData[ticker]?.price || marketData[ticker]} size="md" suffix=" SEK" />
                   <PriceText
-                    value={Math.random() * 5 - 2.5} // Mock change
+                    value={marketData[ticker]?.changePercent || 0}
                     size="sm"
                     showChange
                     colorize

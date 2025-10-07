@@ -5,6 +5,7 @@ Analyserar aktier enligt Marketmate-filosofin och genererar trade-signaler
 
 from stock_data import StockDataFetcher
 from technical_analysis import TechnicalAnalyzer
+from macro_data import MacroDataFetcher
 from typing import Dict, List, Optional
 import json
 
@@ -54,6 +55,7 @@ class MarketmateAI:
     def __init__(self):
         self.fetcher = StockDataFetcher()
         self.analyzer = TechnicalAnalyzer()
+        self.macro_fetcher = MacroDataFetcher()
 
     def analyze_stock(self, ticker: str, market: str = "SE") -> Dict:
         """
@@ -71,30 +73,52 @@ class MarketmateAI:
         # Teknisk analys
         tech_analysis = self.analyzer.get_full_analysis(data)
 
-        # Generera signal
-        signal = self._generate_signal(tech_analysis)
+        # Hämta makrodata
+        macro_regime = self.macro_fetcher._calculate_market_regime()
+        vix_data = self.macro_fetcher.get_vix()
+        sentiment_data = self.macro_fetcher.get_sentiment_data()
+
+        # Generera signal (inkluderar macro context)
+        signal = self._generate_signal(tech_analysis, macro_regime, vix_data, sentiment_data)
 
         # Beräkna entry, stop, targets
         trade_setup = self._calculate_trade_levels(tech_analysis, signal)
 
+        # Hämta företagsnamn
+        try:
+            stock_info = self.fetcher.get_stock_info(ticker, market)
+            company_name = stock_info.get('longName', stock_info.get('shortName', ticker))
+        except:
+            company_name = ticker
+
         return {
             'ticker': ticker,
+            'name': company_name,
             'market': market,
             'analysis': tech_analysis,
             'signal': signal,
             'trade_setup': trade_setup,
+            'macro_context': {
+                'regime': macro_regime,
+                'vix': vix_data.get('value') if vix_data else None,
+                'fear_greed': sentiment_data.get('fearGreed', {}).get('label') if sentiment_data else None,
+            },
             'timestamp': data.index[-1].isoformat()
         }
 
-    def _generate_signal(self, analysis: Dict) -> Dict:
+    def _generate_signal(self, analysis: Dict, macro_regime: str = None,
+                        vix_data: Dict = None, sentiment_data: Dict = None) -> Dict:
         """
         Genererar köp/sälj/hold signal baserat på Marketmate-kriterier
+        ENHANCED: Nu inkluderar macro regime, VIX och sentiment
 
         Returns:
             Dict med signal, styrka och motivering
         """
         signals = []
         score = 0
+
+        # === TECHNICAL INDICATORS ===
 
         # 1. RSI DIVERGENS (Marketmate letar avvikelser)
         if analysis.get('rsi_divergence') == 'bullish':
@@ -122,10 +146,42 @@ class MarketmateAI:
             signals.append('Pris över EMA20 (bullish trend)')
             score += 1
 
-        # 6. VOLYM (kontrollera ovanlig volym)
-        # TODO: Jämför med genomsnittlig volym
+        # === MACRO & SENTIMENT FACTORS ===
 
-        # BEARISH SIGNALER
+        # 6. MARKET REGIME (Marketmate: Likviditet och makro är viktigt!)
+        if macro_regime:
+            if macro_regime == 'bullish':
+                signals.append('✓ BULLISH macro regime')
+                score += 2  # Öka viktningen för bullish regime
+            elif macro_regime == 'bearish':
+                signals.append('⚠ BEARISH macro regime')
+                score -= 2  # Minska score vid bearish regime
+
+        # 7. VIX / FEAR INDEX
+        if vix_data and vix_data.get('value'):
+            vix_value = vix_data['value']
+            if vix_value < 15:  # Low fear = good for risk assets
+                signals.append('✓ Low VIX (complacency)')
+                score += 1
+            elif vix_value > 25:  # High fear = caution
+                signals.append('⚠ Elevated VIX (fear)')
+                score -= 1
+
+        # 8. SENTIMENT (Fear & Greed)
+        if sentiment_data and sentiment_data.get('fearGreed'):
+            fg = sentiment_data['fearGreed']
+            fg_label = fg.get('label', '')
+            if 'Extreme Fear' in fg_label:
+                signals.append('✓ Extreme Fear (contrarian buy)')
+                score += 2
+            elif 'Fear' in fg_label:
+                signals.append('✓ Fear sentiment (opportunity)')
+                score += 1
+            elif 'Extreme Greed' in fg_label:
+                signals.append('⚠ Extreme Greed (caution)')
+                score -= 2
+
+        # === BEARISH SIGNALS ===
         bearish_score = 0
 
         if analysis.get('rsi_divergence') == 'bearish':
@@ -145,10 +201,10 @@ class MarketmateAI:
 
         if net_score >= 5:
             action = 'BUY'
-            strength = 'STRONG' if net_score >= 7 else 'MODERATE'
+            strength = 'STRONG' if net_score >= 8 else 'MODERATE'
         elif net_score <= -5:
             action = 'SELL'
-            strength = 'STRONG' if net_score <= -7 else 'MODERATE'
+            strength = 'STRONG' if net_score <= -8 else 'MODERATE'
         else:
             action = 'HOLD'
             strength = 'WEAK'

@@ -17,6 +17,7 @@ class StockDataFetcher:
 
     # Mapping for svenska aktier (ticker -> Yahoo symbol)
     SWEDISH_TICKERS = {
+        # OMX30 Storbolag
         "VOLVO-B": "VOLV-B.ST",
         "VOLVO B": "VOLV-B.ST",
         "HM-B": "HM-B.ST",
@@ -26,16 +27,83 @@ class StockDataFetcher:
         "ERIC-B": "ERIC-B.ST",
         "ERIC B": "ERIC-B.ST",
         "ABB": "ABB.ST",
-        "ATCO-A": "ATCO-A.ST",
-        "ATCO A": "ATCO-A.ST",
         "AZN": "AZN.ST",
-        "SAND": "SAND.ST",
+        "INVE-B": "INVE-B.ST",  # Investor B
+        "INVE B": "INVE-B.ST",
+        "INVESTOR-B": "INVE-B.ST",
+        "INVESTOR B": "INVE-B.ST",
         "SEB-A": "SEB-A.ST",
         "SEB A": "SEB-A.ST",
-        "SINCH": "SINCH.ST",
+        "SWED-A": "SWED-A.ST",  # Swedbank A
+        "SWED A": "SWED-A.ST",
+        "ATCO-A": "ATCO-A.ST",  # Atlas Copco A
+        "ATCO A": "ATCO-A.ST",
+        "ATCO-B": "ATCO-B.ST",  # Atlas Copco B
+        "ATCO B": "ATCO-B.ST",
+        "HEXA-B": "HEXA-B.ST",  # Hexagon B
+        "HEXA B": "HEXA-B.ST",
+        "SAND": "SAND.ST",  # Sandvik
         "SKF-B": "SKF-B.ST",
         "SKF B": "SKF-B.ST",
+        "ALFA": "ALFA.ST",  # Alfa Laval
+        "ASSA-B": "ASSA-B.ST",  # ASSA ABLOY B
+        "ASSA B": "ASSA-B.ST",
+
+        # Banker & Finans
+        "SHB-A": "SHB-A.ST",  # Handelsbanken A
+        "SHB A": "SHB-A.ST",
+        "NDA-SE": "NDA-SE.ST",  # Nordea
+        "NDA SE": "NDA-SE.ST",
+
+        # Telekom & Tech
         "TELIA": "TELIA.ST",
+        "SINCH": "SINCH.ST",
+        "ESSITY-B": "ESSITY-B.ST",
+        "ESSITY B": "ESSITY-B.ST",
+
+        # Industri & Manufacturing
+        "ELUX-B": "ELUX-B.ST",  # Electrolux B
+        "ELUX B": "ELUX-B.ST",
+        "GETI-B": "GETI-B.ST",  # Getinge B
+        "GETI B": "GETI-B.ST",
+        "SKA-B": "SKA-B.ST",  # Skanska B
+        "SKA B": "SKA-B.ST",
+        "BOL": "BOL.ST",  # Boliden
+        "SSAB-A": "SSAB-A.ST",  # SSAB A
+        "SSAB A": "SSAB-A.ST",
+        "SSAB-B": "SSAB-B.ST",  # SSAB B
+        "SSAB B": "SSAB-B.ST",
+
+        # Fastighet
+        "FABG": "FABG.ST",  # Fabege
+        "SBB-B": "SBB-B.ST",  # Samhallsbyggnadsbolaget B
+        "SBB B": "SBB-B.ST",
+        "CAST": "CAST.ST",  # Castellum
+        "WIHL": "WIHL.ST",  # Wihlborgs
+
+        # Konsument & Retail
+        "ICA": "ICA.ST",  # ICA Gruppen
+        "AXFO": "AXFO.ST",  # Axfood
+
+        # Hälsovård & Pharma
+        "SWMA": "SWMA.ST",  # Swedish Match (delisted, but keep for historical)
+
+        # Gaming & Betting
+        "EVO": "EVO.ST",  # Evolution
+        "KINV-B": "KINV-B.ST",  # Kinnevik B
+        "KINV B": "KINV-B.ST",
+        "MTG-B": "MTG-B.ST",  # Modern Times Group B
+        "MTG B": "MTG-B.ST",
+
+        # Telecom & Internet
+        "TEL2-B": "TEL2-B.ST",  # Tele2 B
+        "TEL2 B": "TEL2-B.ST",
+
+        # Materials & Mining
+        "LUND": "LUND.ST",  # Lundin Mining
+
+        # Energy
+        "EQNR": "EQNR.ST",  # Equinor (Norwegian but traded in Stockholm)
     }
 
     def __init__(self):
@@ -150,6 +218,66 @@ class StockDataFetcher:
             print(f"Fel vid hamtning av info for {ticker}: {e}")
             return {'ticker': ticker, 'name': ticker}
 
+    def get_stock_quote(self, ticker: str, market: str = "SE") -> Optional[Dict]:
+        """
+        Hamtar fullstandigt quote (pris, change, changePercent) for aktie
+
+        Args:
+            ticker: Aktiesymbol
+            market: Marknad (SE/US)
+
+        Returns:
+            Dict med price, change, changePercent eller None om fel
+        """
+        try:
+            symbol = self.get_ticker_symbol(ticker, market)
+            stock = yf.Ticker(symbol)
+
+            # Hamta fran info
+            try:
+                info = stock.info
+                price = info.get('currentPrice') or info.get('regularMarketPrice')
+
+                if price:
+                    # Hamta change data
+                    change = info.get('regularMarketChange', 0)
+                    change_percent = info.get('regularMarketChangePercent', 0)
+
+                    return {
+                        'price': float(price),
+                        'change': float(change) if change else 0,
+                        'changePercent': float(change_percent) if change_percent else 0
+                    }
+            except Exception as e:
+                print(f"Error getting info for {ticker}: {e}")
+
+            # Fallback: hamta senaste 2 dagar och berakna change
+            hist = stock.history(period="2d")
+            if not hist.empty and len(hist) >= 2:
+                current_price = float(hist['Close'].iloc[-1])
+                previous_price = float(hist['Close'].iloc[-2])
+                change = current_price - previous_price
+                change_percent = (change / previous_price) * 100
+
+                return {
+                    'price': current_price,
+                    'change': change,
+                    'changePercent': change_percent
+                }
+            elif not hist.empty:
+                # Om bara 1 dag finns
+                return {
+                    'price': float(hist['Close'].iloc[-1]),
+                    'change': 0,
+                    'changePercent': 0
+                }
+
+            return None
+
+        except Exception as e:
+            print(f"Fel vid hamtning av quote for {ticker}: {e}")
+            return None
+
     def get_multiple_prices(self, tickers: List[str], market: str = "SE") -> Dict[str, float]:
         """
         Hamtar priser for flera aktier samtidigt
@@ -168,6 +296,25 @@ class StockDataFetcher:
                 prices[ticker] = price
 
         return prices
+
+    def get_multiple_quotes(self, tickers: List[str], market: str = "SE") -> Dict[str, Dict]:
+        """
+        Hamtar quotes (pris + change) for flera aktier samtidigt
+
+        Args:
+            tickers: Lista med aktiesymboler
+            market: Marknad
+
+        Returns:
+            Dict med ticker: {price, change, changePercent}
+        """
+        quotes = {}
+        for ticker in tickers:
+            quote = self.get_stock_quote(ticker, market)
+            if quote:
+                quotes[ticker] = quote
+
+        return quotes
 
     def is_market_open(self, market: str = "SE") -> bool:
         """
@@ -194,19 +341,179 @@ class StockDataFetcher:
 
         return market_open <= now <= market_close
 
-    def search_ticker(self, query: str) -> List[Dict]:
+    def search_ticker(self, query: str, limit: int = 10) -> List[Dict]:
         """
         Soker efter aktier baserat pa namn eller ticker
 
         Args:
-            query: Sokord
+            query: Sokord (foretag eller ticker)
+            limit: Max antal resultat
 
         Returns:
             Lista med matchande aktier
         """
-        # TODO: Implementera sokfunktion
-        # For nu returnerar vi bara query som ticker
-        return [{'ticker': query.upper(), 'name': query.upper()}]
+        results = []
+        query_upper = query.upper()
+
+        # 1. Sok bland svenska aktier (SWEDISH_TICKERS)
+        for ticker, yahoo_symbol in self.SWEDISH_TICKERS.items():
+            if query_upper in ticker.upper():
+                try:
+                    # Hamta namn for att visa
+                    info = self.get_stock_info(ticker, "SE")
+                    results.append({
+                        'ticker': ticker,
+                        'name': info.get('name', ticker),
+                        'market': 'SE',
+                        'exchange': 'Stockholm',
+                        'symbol': yahoo_symbol
+                    })
+                except:
+                    results.append({
+                        'ticker': ticker,
+                        'name': ticker,
+                        'market': 'SE',
+                        'exchange': 'Stockholm',
+                        'symbol': yahoo_symbol
+                    })
+
+        # 2. Sok efter foretagsnamn bland svenska aktier
+        if len(results) < limit:
+            for ticker, yahoo_symbol in self.SWEDISH_TICKERS.items():
+                if ticker not in [r['ticker'] for r in results]:  # Undvik dubbletter
+                    try:
+                        info = self.get_stock_info(ticker, "SE")
+                        name = info.get('name', ticker)
+                        if query_upper in name.upper():
+                            results.append({
+                                'ticker': ticker,
+                                'name': name,
+                                'market': 'SE',
+                                'exchange': 'Stockholm',
+                                'symbol': yahoo_symbol
+                            })
+                    except:
+                        pass
+
+        # 3. Sok bland amerikanska aktier (prova direkt ticker)
+        if len(results) < limit:
+            try:
+                # Prova som US ticker
+                stock = yf.Ticker(query_upper)
+                info = stock.info
+                if info and info.get('regularMarketPrice'):
+                    results.append({
+                        'ticker': query_upper,
+                        'name': info.get('longName', query_upper),
+                        'market': 'US',
+                        'exchange': info.get('exchange', 'NASDAQ/NYSE'),
+                        'symbol': query_upper
+                    })
+            except:
+                pass
+
+        # 4. Vanliga amerikanska aktier (hardkodad lista for snabb search)
+        us_common = {
+            # Mega Tech
+            'AAPL': 'Apple Inc.',
+            'MSFT': 'Microsoft Corporation',
+            'GOOGL': 'Alphabet Inc.',
+            'GOOG': 'Alphabet Inc.',
+            'AMZN': 'Amazon.com Inc.',
+            'META': 'Meta Platforms Inc.',
+            'FB': 'Meta Platforms Inc.',
+
+            # AI & Chips
+            'NVDA': 'NVIDIA Corporation',
+            'AMD': 'Advanced Micro Devices Inc.',
+            'INTC': 'Intel Corporation',
+            'AVGO': 'Broadcom Inc.',
+            'QCOM': 'Qualcomm Inc.',
+
+            # EV & Auto
+            'TSLA': 'Tesla Inc.',
+            'F': 'Ford Motor Company',
+            'GM': 'General Motors Company',
+            'RIVN': 'Rivian Automotive Inc.',
+            'LCID': 'Lucid Group Inc.',
+
+            # Streaming & Entertainment
+            'NFLX': 'Netflix Inc.',
+            'DIS': 'The Walt Disney Company',
+            'PARA': 'Paramount Global',
+            'WBD': 'Warner Bros. Discovery Inc.',
+
+            # Finance & Banking
+            'JPM': 'JPMorgan Chase & Co.',
+            'BAC': 'Bank of America Corporation',
+            'WFC': 'Wells Fargo & Company',
+            'GS': 'Goldman Sachs Group Inc.',
+            'MS': 'Morgan Stanley',
+            'C': 'Citigroup Inc.',
+            'V': 'Visa Inc.',
+            'MA': 'Mastercard Inc.',
+            'PYPL': 'PayPal Holdings Inc.',
+            'SQ': 'Block Inc.',
+
+            # E-commerce & Retail
+            'WMT': 'Walmart Inc.',
+            'TGT': 'Target Corporation',
+            'COST': 'Costco Wholesale Corporation',
+            'HD': 'The Home Depot Inc.',
+            'NKE': 'Nike Inc.',
+
+            # Energy
+            'XOM': 'Exxon Mobil Corporation',
+            'CVX': 'Chevron Corporation',
+            'COP': 'ConocoPhillips',
+
+            # Healthcare & Pharma
+            'JNJ': 'Johnson & Johnson',
+            'UNH': 'UnitedHealth Group Inc.',
+            'PFE': 'Pfizer Inc.',
+            'ABBV': 'AbbVie Inc.',
+            'MRK': 'Merck & Co. Inc.',
+            'LLY': 'Eli Lilly and Company',
+
+            # Aerospace & Defense
+            'BA': 'Boeing Company',
+            'LMT': 'Lockheed Martin Corporation',
+            'RTX': 'Raytheon Technologies Corporation',
+
+            # Communications
+            'T': 'AT&T Inc.',
+            'VZ': 'Verizon Communications Inc.',
+            'CMCSA': 'Comcast Corporation',
+
+            # Consumer Goods
+            'PG': 'Procter & Gamble Company',
+            'KO': 'The Coca-Cola Company',
+            'PEP': 'PepsiCo Inc.',
+            'MCD': "McDonald's Corporation",
+            'SBUX': 'Starbucks Corporation',
+
+            # Software & Cloud
+            'CRM': 'Salesforce Inc.',
+            'ORCL': 'Oracle Corporation',
+            'ADBE': 'Adobe Inc.',
+            'NOW': 'ServiceNow Inc.',
+            'SNOW': 'Snowflake Inc.',
+            'PLTR': 'Palantir Technologies Inc.',
+        }
+
+        if len(results) < limit:
+            for ticker, name in us_common.items():
+                if query_upper in ticker or query_upper in name.upper():
+                    if ticker not in [r['ticker'] for r in results]:
+                        results.append({
+                            'ticker': ticker,
+                            'name': name,
+                            'market': 'US',
+                            'exchange': 'NASDAQ/NYSE',
+                            'symbol': ticker
+                        })
+
+        return results[:limit]
 
 
 # Test-funktion

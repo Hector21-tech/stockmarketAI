@@ -5,15 +5,40 @@ Exponerar backend-funktioner for mobilappen
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flask_socketio import SocketIO, emit, join_room, leave_room
 from stock_data import StockDataFetcher
 from technical_analysis import TechnicalAnalyzer
 from ai_engine import MarketmateAI
 from trade_manager import TradeManager
 from notification_service import NotificationService
+from macro_data import MacroDataFetcher
 import json
+import pandas as pd
+import threading
+import time
 
 app = Flask(__name__)
-CORS(app)  # Tillat requests fran React Native
+
+# CORS Configuration - Allow requests from Expo web and mobile
+CORS(app, resources={
+    r"/api/*": {
+        "origins": [
+            "http://localhost:8082",
+            "http://localhost:8083",
+            "http://localhost:19000",
+            "http://localhost:19006",
+            "http://192.168.1.46:8082",
+            "http://192.168.1.46:19000",
+            "*"  # Allow all for development
+        ],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True
+    }
+})
+
+# Initialize SocketIO with CORS support
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 # Initiera services
 fetcher = StockDataFetcher()
@@ -21,6 +46,7 @@ analyzer = TechnicalAnalyzer()
 ai_engine = MarketmateAI()
 trade_manager = TradeManager()
 notification_service = NotificationService()
+macro_fetcher = MacroDataFetcher()
 
 
 # ============ STOCK DATA ENDPOINTS ============
@@ -64,6 +90,24 @@ def get_multiple_prices():
     })
 
 
+@app.route('/api/stock/quotes', methods=['POST'])
+def get_multiple_quotes():
+    """Hamtar fullstandiga quotes (pris + change) for flera aktier"""
+    data = request.json
+    tickers = data.get('tickers', [])
+    market = data.get('market', 'SE')
+
+    if not tickers:
+        return jsonify({'error': 'tickers required'}), 400
+
+    quotes = fetcher.get_multiple_quotes(tickers, market)
+
+    return jsonify({
+        'quotes': quotes,
+        'market': market
+    })
+
+
 @app.route('/api/stock/info', methods=['GET'])
 def get_stock_info():
     """Hamtar info om aktie"""
@@ -76,6 +120,27 @@ def get_stock_info():
     info = fetcher.get_stock_info(ticker, market)
 
     return jsonify(info)
+
+
+@app.route('/api/stock/search', methods=['GET'])
+def search_stocks():
+    """Soker efter aktier baserat pa namn eller ticker"""
+    query = request.args.get('q', '').strip()
+    limit = request.args.get('limit', 10, type=int)
+
+    if not query:
+        return jsonify({'results': []})
+
+    if len(query) < 1:
+        return jsonify({'results': []})
+
+    results = fetcher.search_ticker(query, limit)
+
+    return jsonify({
+        'query': query,
+        'results': results,
+        'count': len(results)
+    })
 
 
 @app.route('/api/stock/historical', methods=['GET'])
@@ -317,6 +382,30 @@ def update_stop_loss():
         return jsonify({'error': 'Failed to update stop loss'}), 400
 
 
+# ============ PORTFOLIO ANALYTICS ENDPOINTS ============
+
+@app.route('/api/portfolio/analytics', methods=['GET'])
+def get_portfolio_analytics():
+    """Hämtar portfolio analytics metrics"""
+    try:
+        analytics = trade_manager.get_portfolio_analytics()
+        return jsonify(analytics)
+    except Exception as e:
+        print(f"Error getting portfolio analytics: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/portfolio/history', methods=['GET'])
+def get_trade_history():
+    """Hämtar trade history (alla entries och exits)"""
+    try:
+        history = trade_manager.get_trade_history()
+        return jsonify({'trades': history})
+    except Exception as e:
+        print(f"Error getting trade history: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 # ============ UTILITY ENDPOINTS ============
 
 @app.route('/api/health', methods=['GET'])
@@ -340,6 +429,52 @@ def market_status():
         'market': market,
         'is_open': is_open
     })
+
+
+# ============ MACRO DATA ENDPOINTS ============
+
+@app.route('/api/macro', methods=['GET'])
+def get_macro_data():
+    """Hamtar alla makroekonomiska indikatorer"""
+    try:
+        macro_data = macro_fetcher.get_all_macro_data()
+
+        return jsonify({
+            'success': True,
+            'data': macro_data,
+            'timestamp': macro_data.get('timestamp', None)
+        })
+    except Exception as e:
+        print(f"Error fetching macro data: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch macro data'
+        }), 500
+
+
+@app.route('/api/correlations/<ticker>', methods=['GET'])
+def get_stock_correlations(ticker):
+    """Hamtar korrelationer for en specifik aktie"""
+    market = request.args.get('market', 'SE')
+
+    try:
+        correlations = macro_fetcher.get_stock_correlations(ticker, market)
+
+        if correlations is None:
+            return jsonify({'error': f'Could not calculate correlations for {ticker}'}), 404
+
+        return jsonify({
+            'success': True,
+            'ticker': ticker,
+            'market': market,
+            'correlations': correlations
+        })
+    except Exception as e:
+        print(f"Error fetching correlations: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch correlations'
+        }), 500
 
 
 # ============ STRATEGY ENDPOINT ============
@@ -466,6 +601,95 @@ def get_registered_tokens():
     })
 
 
+# ============ WEBSOCKET REAL-TIME STREAMING ============
+
+# Track connected clients and their subscriptions
+connected_clients = {}
+price_cache = {}  # Cache for prices to avoid too many API calls
+
+@socketio.on('connect')
+def handle_connect():
+    """Handle client connection"""
+    print(f'Client connected: {request.sid}')
+    connected_clients[request.sid] = {'watchlist': [], 'active_ticker': None}
+    emit('connection_status', {'status': 'connected', 'message': 'Welcome to MarketsAI Real-time'})
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    """Handle client disconnection"""
+    print(f'Client disconnected: {request.sid}')
+    if request.sid in connected_clients:
+        del connected_clients[request.sid]
+
+@socketio.on('subscribe_watchlist')
+def handle_subscribe_watchlist(data):
+    """Subscribe to watchlist price updates"""
+    tickers = data.get('tickers', [])
+    market = data.get('market', 'SE')
+
+    if request.sid in connected_clients:
+        connected_clients[request.sid]['watchlist'] = tickers
+        connected_clients[request.sid]['market'] = market
+        print(f'Client {request.sid} subscribed to watchlist: {tickers}')
+        emit('subscribed', {'tickers': tickers, 'market': market})
+
+@socketio.on('unsubscribe_watchlist')
+def handle_unsubscribe_watchlist():
+    """Unsubscribe from watchlist updates"""
+    if request.sid in connected_clients:
+        connected_clients[request.sid]['watchlist'] = []
+        print(f'Client {request.sid} unsubscribed from watchlist')
+
+def stream_prices():
+    """Background task to stream prices to connected clients"""
+    while True:
+        try:
+            time.sleep(5)  # Update every 5 seconds
+
+            # Collect all unique tickers to fetch
+            tickers_to_fetch = {}
+            for sid, client_data in connected_clients.items():
+                watchlist = client_data.get('watchlist', [])
+                market = client_data.get('market', 'SE')
+                if watchlist:
+                    if market not in tickers_to_fetch:
+                        tickers_to_fetch[market] = set()
+                    tickers_to_fetch[market].update(watchlist)
+
+            # Fetch quotes (price + change) for each market
+            for market, tickers in tickers_to_fetch.items():
+                if tickers:
+                    try:
+                        quotes = fetcher.get_multiple_quotes(list(tickers), market)
+
+                        # Cache the quotes
+                        for ticker, quote in quotes.items():
+                            price_cache[f'{ticker}:{market}'] = quote
+
+                        # Send updates to subscribed clients
+                        for sid, client_data in connected_clients.items():
+                            if client_data.get('market') == market:
+                                client_watchlist = client_data.get('watchlist', [])
+                                client_quotes = {t: quotes.get(t) for t in client_watchlist if t in quotes}
+
+                                if client_quotes:
+                                    socketio.emit('price_update', {
+                                        'quotes': client_quotes,
+                                        'market': market,
+                                        'timestamp': time.time()
+                                    }, room=sid)
+                    except Exception as e:
+                        print(f'Error fetching quotes for {market}: {e}')
+
+        except Exception as e:
+            print(f'Error in price streaming: {e}')
+            time.sleep(5)
+
+# Start background price streaming thread
+price_stream_thread = threading.Thread(target=stream_prices, daemon=True)
+price_stream_thread.start()
+
+
 # ============ ERROR HANDLERS ============
 
 @app.errorhandler(404)
@@ -489,6 +713,7 @@ if __name__ == '__main__':
     print("  GET  /api/stock/price?ticker=VOLVO-B&market=SE")
     print("  POST /api/stock/prices")
     print("  GET  /api/stock/info?ticker=VOLVO-B")
+    print("  GET  /api/stock/search?q=VOLVO&limit=10")
     print("  GET  /api/stock/historical?ticker=VOLVO-B&period=3mo")
     print("  POST /api/analyze")
     print("  POST /api/scan")
@@ -500,6 +725,8 @@ if __name__ == '__main__':
     print("  POST /api/positions/exit")
     print("  PUT  /api/positions/stop-loss")
     print("  GET  /api/market-status?market=SE")
+    print("  GET  /api/macro")
+    print("  GET  /api/correlations/<ticker>?market=SE")
     print("  GET  /api/strategy")
     print("  POST /api/notifications/register")
     print("  POST /api/notifications/unregister")
@@ -510,4 +737,5 @@ if __name__ == '__main__':
     print("Running on http://127.0.0.1:5000")
     print("="*60 + "\n")
 
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Run with SocketIO support
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)

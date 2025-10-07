@@ -25,8 +25,14 @@ export const api = {
   getMultiplePrices: (tickers, market = 'SE') =>
     apiClient.post('/stock/prices', { tickers, market }),
 
+  getMultipleQuotes: (tickers, market = 'SE') =>
+    apiClient.post('/stock/quotes', { tickers, market }),
+
   getStockInfo: (ticker, market = 'SE') =>
     apiClient.get('/stock/info', { params: { ticker, market } }),
+
+  searchStocks: (query, limit = 10) =>
+    apiClient.get('/stock/search', { params: { q: query, limit } }),
 
   getHistoricalData: (ticker, period = '3mo', interval = '1d', market = 'SE') =>
     apiClient.get('/stock/historical', { params: { ticker, market, period, interval } }),
@@ -55,11 +61,19 @@ export const api = {
   updateStopLoss: (ticker, newStop) =>
     apiClient.put('/positions/stop-loss', { ticker, new_stop: newStop }),
 
+  // Portfolio Analytics
+  getPortfolioAnalytics: () => apiClient.get('/portfolio/analytics'),
+
+  getTradeHistory: () => apiClient.get('/portfolio/history'),
+
   // Utility
   getMarketStatus: (market = 'SE') =>
     apiClient.get('/market-status', { params: { market } }),
 
   getStrategy: () => apiClient.get('/strategy'),
+
+  // Macro Data
+  getMacroData: () => apiClient.get('/macro'),
 
   // Notifications
   registerPushToken: (pushToken, userId = 'default') =>
