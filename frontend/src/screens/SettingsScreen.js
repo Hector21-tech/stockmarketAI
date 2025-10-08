@@ -11,6 +11,7 @@ import {
   ScrollView,
   Alert,
   Switch,
+  TouchableOpacity,
 } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { Card, Button } from '../components';
@@ -27,10 +28,13 @@ export default function SettingsScreen() {
     exits: true,
   });
   const [pushToken, setPushToken] = useState(null);
+  const [signalMode, setSignalMode] = useState('conservative');
+  const [changingMode, setChangingMode] = useState(false);
 
   useEffect(() => {
     loadNotificationSettings();
     loadPushToken();
+    loadSignalMode();
   }, []);
 
   const loadNotificationSettings = async () => {
@@ -41,6 +45,31 @@ export default function SettingsScreen() {
   const loadPushToken = async () => {
     const token = await NotificationService.getStoredPushToken();
     setPushToken(token);
+  };
+
+  const loadSignalMode = async () => {
+    try {
+      const response = await api.getCurrentSignalMode();
+      setSignalMode(response.data.mode);
+    } catch (error) {
+      console.error('Error loading signal mode:', error);
+    }
+  };
+
+  const changeSignalMode = async (mode) => {
+    try {
+      setChangingMode(true);
+      const response = await api.setSignalMode(mode);
+      if (response.data.success) {
+        setSignalMode(mode);
+        Alert.alert('✓ Sparad!', `Signal mode ändrad till ${mode === 'conservative' ? 'Conservative 🛡️' : 'Aggressive ⚡'}`);
+      }
+    } catch (error) {
+      console.error('Error changing signal mode:', error);
+      Alert.alert('Fel', 'Kunde inte ändra signal mode');
+    } finally {
+      setChangingMode(false);
+    }
   };
 
   const updateNotificationSetting = async (key, value) => {
@@ -150,6 +179,91 @@ export default function SettingsScreen() {
         <Button onPress={checkAPIHealth} style={{ marginTop: theme.spacing.sm }}>
           Test Connection
         </Button>
+      </Card>
+
+      {/* Signal Mode */}
+      <Card variant="elevated" style={{ margin: theme.spacing.base, marginBottom: theme.spacing.sm }}>
+        <Text style={[styles.sectionTitle, { color: theme.colors.text.primary, ...theme.typography.styles.h6 }]}>
+          Signal Mode
+        </Text>
+        <Text style={[styles.description, { color: theme.colors.text.secondary, marginBottom: theme.spacing.md }]}>
+          Välj tradingläge baserat på din riskprofil och produkttyp
+        </Text>
+
+        {/* Conservative Mode */}
+        <TouchableOpacity
+          onPress={() => changeSignalMode('conservative')}
+          disabled={changingMode}
+          style={[
+            styles.modeOption,
+            {
+              backgroundColor: signalMode === 'conservative'
+                ? theme.colors.primary + '20'
+                : theme.colors.background.secondary,
+              borderColor: signalMode === 'conservative'
+                ? theme.colors.primary
+                : theme.colors.border,
+            }
+          ]}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+            <Text style={{ fontSize: 20, marginRight: 8 }}>🛡️</Text>
+            <Text style={[styles.modeName, { color: theme.colors.text.primary }]}>
+              Conservative
+            </Text>
+            {signalMode === 'conservative' && (
+              <View style={{ marginLeft: 8, backgroundColor: theme.colors.bullish, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
+                <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '700' }}>AKTIV</Text>
+              </View>
+            )}
+          </View>
+          <Text style={[styles.modeDescription, { color: theme.colors.text.secondary }]}>
+            Standardläge. Kräver bekräftelse, lägre risk. Passar aktieköp.
+          </Text>
+          <View style={{ flexDirection: 'row', marginTop: 8 }}>
+            <Text style={[styles.modeStats, { color: theme.colors.text.tertiary }]}>
+              Min Score: 4.0 • Stop: 2.5% • Tech/Macro: 70/30
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* Aggressive Mode */}
+        <TouchableOpacity
+          onPress={() => changeSignalMode('aggressive')}
+          disabled={changingMode}
+          style={[
+            styles.modeOption,
+            {
+              backgroundColor: signalMode === 'aggressive'
+                ? theme.colors.warning + '20'
+                : theme.colors.background.secondary,
+              borderColor: signalMode === 'aggressive'
+                ? theme.colors.warning || '#FF9800'
+                : theme.colors.border,
+              marginTop: theme.spacing.sm,
+            }
+          ]}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+            <Text style={{ fontSize: 20, marginRight: 8 }}>⚡</Text>
+            <Text style={[styles.modeName, { color: theme.colors.text.primary }]}>
+              Aggressive
+            </Text>
+            {signalMode === 'aggressive' && (
+              <View style={{ marginLeft: 8, backgroundColor: theme.colors.warning || '#FF9800', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
+                <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '700' }}>AKTIV</Text>
+              </View>
+            )}
+          </View>
+          <Text style={[styles.modeDescription, { color: theme.colors.text.secondary }]}>
+            Tidigt inträde vid momentum-start. Anpassad för Mini Futures / Bull-certifikat.
+          </Text>
+          <View style={{ flexDirection: 'row', marginTop: 8 }}>
+            <Text style={[styles.modeStats, { color: theme.colors.text.tertiary }]}>
+              Min Score: 2.5 • Stop: 1.2% • Tech/Macro: 85/15 • Targets: 1.3x
+            </Text>
+          </View>
+        </TouchableOpacity>
       </Card>
 
       {/* Notifications */}
@@ -346,5 +460,21 @@ const styles = StyleSheet.create({
   tokenText: {
     fontSize: 12,
     marginTop: 8,
+  },
+  modeOption: {
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 2,
+  },
+  modeName: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  modeDescription: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  modeStats: {
+    fontSize: 11,
   },
 });

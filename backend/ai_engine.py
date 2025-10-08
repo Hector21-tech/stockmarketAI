@@ -6,6 +6,7 @@ Analyserar aktier enligt Marketmate-filosofin och genererar trade-signaler
 from stock_data import StockDataFetcher
 from technical_analysis import TechnicalAnalyzer
 from macro_data import MacroDataFetcher
+from signal_modes import get_mode_config
 from typing import Dict, List, Optional
 import json
 
@@ -57,13 +58,20 @@ class MarketmateAI:
         self.analyzer = TechnicalAnalyzer()
         self.macro_fetcher = MacroDataFetcher()
 
-    def analyze_stock(self, ticker: str, market: str = "SE") -> Dict:
+    def analyze_stock(self, ticker: str, market: str = "SE", mode: str = "conservative") -> Dict:
         """
         Fullständig analys av aktie enligt Marketmate-strategin
+
+        Args:
+            ticker: Aktiesymbol
+            market: Marknad (default SE)
+            mode: Signal mode ('conservative' eller 'aggressive')
 
         Returns:
             Dict med analys, signal och trade-setup
         """
+        # Hämta mode-konfiguration
+        mode_config = get_mode_config(mode)
         # Hämta data
         data = self.fetcher.get_historical_data(ticker, period="3mo", market=market)
 
@@ -77,12 +85,13 @@ class MarketmateAI:
         macro_regime = self.macro_fetcher._calculate_market_regime()
         vix_data = self.macro_fetcher.get_vix()
         sentiment_data = self.macro_fetcher.get_sentiment_data()
+        macro_score_data = self.macro_fetcher.get_macro_score()
 
-        # Generera signal (inkluderar macro context)
-        signal = self._generate_signal(tech_analysis, macro_regime, vix_data, sentiment_data)
+        # Generera signal (inkluderar macro context och mode)
+        signal = self._generate_signal(tech_analysis, macro_regime, vix_data, sentiment_data, macro_score_data, mode_config)
 
-        # Beräkna entry, stop, targets
-        trade_setup = self._calculate_trade_levels(tech_analysis, signal)
+        # Beräkna entry, stop, targets (med mode config)
+        trade_setup = self._calculate_trade_levels(tech_analysis, signal, mode_config)
 
         # Hämta företagsnamn
         try:
@@ -102,84 +111,120 @@ class MarketmateAI:
                 'regime': macro_regime,
                 'vix': vix_data.get('value') if vix_data else None,
                 'fear_greed': sentiment_data.get('fearGreed', {}).get('label') if sentiment_data else None,
+                'macro_score': macro_score_data.get('score') if macro_score_data else 5.0,
+                'macro_classification': macro_score_data.get('classification') if macro_score_data else 'Unknown',
             },
             'timestamp': data.index[-1].isoformat()
         }
 
     def _generate_signal(self, analysis: Dict, macro_regime: str = None,
-                        vix_data: Dict = None, sentiment_data: Dict = None) -> Dict:
+                        vix_data: Dict = None, sentiment_data: Dict = None,
+                        macro_score_data: Dict = None, mode_config: Dict = None) -> Dict:
         """
         Genererar köp/sälj/hold signal baserat på Marketmate-kriterier
-        ENHANCED: Nu inkluderar macro regime, VIX och sentiment
+        ENHANCED: Nu inkluderar macro regime, VIX, sentiment OCH signal mode
+        FORMULA: TotalScore = (Technical * tech_weight) + (Macro * macro_weight)
 
         Returns:
             Dict med signal, styrka och motivering
         """
+        # Default mode config om inte angiven
+        if mode_config is None:
+            from signal_modes import get_mode_config
+            mode_config = get_mode_config('conservative')
         signals = []
-        score = 0
+        technical_score = 0
 
         # === TECHNICAL INDICATORS ===
 
         # 1. RSI DIVERGENS (Marketmate letar avvikelser)
         if analysis.get('rsi_divergence') == 'bullish':
             signals.append('Positiv divergens i RSI')
-            score += 3
+            technical_score += 3
 
         # 2. RSI OVERSOLD
         if analysis.get('rsi') and analysis['rsi'] < 30:
             signals.append('RSI oversold (<30)')
-            score += 2
+            technical_score += 2
 
         # 3. MACD CROSSOVER
         if analysis.get('macd', {}).get('crossover') == 'bullish':
             signals.append('MACD bullish crossover')
-            score += 2
+            technical_score += 2
 
         # 4. STOCHASTIC OVERSOLD OCH VÄNDER
         stoch = analysis.get('stochastic', {})
         if stoch.get('status') == 'oversold':
             signals.append('Stochastic oversold')
-            score += 2
+            technical_score += 2
 
         # 5. PRIS ÖVER EMA (TREND)
         if analysis.get('trend') == 'bullish':
             signals.append('Pris över EMA20 (bullish trend)')
-            score += 1
+            technical_score += 1
+
+        # 6. VOLYM ANALYS (Marketmate: Volym bekräftar rörelsen!)
+        volume_ratio = analysis.get('volume_ratio', 1.0)
+        if volume_ratio > 1.5:  # Volym 50% över genomsnitt
+            signals.append(f'✓ Hög volym ({volume_ratio:.1f}x genomsnitt)')
+            technical_score += 2
+        elif volume_ratio > 1.2:  # Volym 20% över genomsnitt
+            signals.append(f'✓ Ökad volym ({volume_ratio:.1f}x genomsnitt)')
+            technical_score += 1
+
+        # 7. BREAKOUT DETECTION (MarketMate: Trendbrott och breakouts!)
+        price = analysis.get('price')
+        resistance = analysis.get('resistance')
+        support = analysis.get('support')
+
+        # Breakout över resistance
+        if resistance and price > resistance * 0.98:  # Inom 2% av breakout
+            if price > resistance:
+                signals.append('🚀 BREAKOUT över motstånd!')
+                technical_score += 3  # Starkt köpsignal
+            else:
+                signals.append('📊 Nära breakout över motstånd')
+                technical_score += 1
+
+        # Support håller (pris nära support men över)
+        if support and price < support * 1.03 and price > support:
+            signals.append('✅ Support håller')
+            technical_score += 1
 
         # === MACRO & SENTIMENT FACTORS ===
 
-        # 6. MARKET REGIME (Marketmate: Likviditet och makro är viktigt!)
+        # 8. MARKET REGIME (Marketmate: Likviditet och makro är viktigt!)
         if macro_regime:
             if macro_regime == 'bullish':
                 signals.append('✓ BULLISH macro regime')
-                score += 2  # Öka viktningen för bullish regime
+                technical_score += 2  # Öka viktningen för bullish regime
             elif macro_regime == 'bearish':
                 signals.append('⚠ BEARISH macro regime')
-                score -= 2  # Minska score vid bearish regime
+                technical_score -= 2  # Minska score vid bearish regime
 
-        # 7. VIX / FEAR INDEX
+        # 9. VIX / FEAR INDEX
         if vix_data and vix_data.get('value'):
             vix_value = vix_data['value']
             if vix_value < 15:  # Low fear = good for risk assets
                 signals.append('✓ Low VIX (complacency)')
-                score += 1
+                technical_score += 1
             elif vix_value > 25:  # High fear = caution
                 signals.append('⚠ Elevated VIX (fear)')
-                score -= 1
+                technical_score -= 1
 
-        # 8. SENTIMENT (Fear & Greed)
+        # 10. SENTIMENT (Fear & Greed)
         if sentiment_data and sentiment_data.get('fearGreed'):
             fg = sentiment_data['fearGreed']
             fg_label = fg.get('label', '')
             if 'Extreme Fear' in fg_label:
                 signals.append('✓ Extreme Fear (contrarian buy)')
-                score += 2
+                technical_score += 2
             elif 'Fear' in fg_label:
                 signals.append('✓ Fear sentiment (opportunity)')
-                score += 1
+                technical_score += 1
             elif 'Extreme Greed' in fg_label:
                 signals.append('⚠ Extreme Greed (caution)')
-                score -= 2
+                technical_score -= 2
 
         # === BEARISH SIGNALS ===
         bearish_score = 0
@@ -196,37 +241,77 @@ class MarketmateAI:
             signals.append('VARNING: MACD bearish crossover')
             bearish_score += 2
 
-        # BESLUT
-        net_score = score - bearish_score
+        # TECHNICAL NET SCORE
+        net_technical_score = technical_score - bearish_score
 
-        if net_score >= 5:
+        # === MACRO SCORE INTEGRATION ===
+        # Hämta Macro Score (0-10, där 5 är neutral)
+        macro_score = 5.0  # Default neutral
+        if macro_score_data:
+            macro_score = macro_score_data.get('score', 5.0)
+            # Lägg till macro score i reasons
+            macro_classification = macro_score_data.get('classification', 'Unknown')
+            signals.append(f'📊 Makro Score: {macro_score:.1f}/10 ({macro_classification})')
+
+        # MARKETMATE FORMULA: TotalScore = (Technical * 0.7) + (Macro * 0.3)
+        # Normalize macro_score from 0-10 to match technical scale (-10 to +10)
+        # Macro 5 = neutral (0), Macro 10 = bullish (+10), Macro 0 = bearish (-10)
+        normalized_macro = (macro_score - 5) * 2  # Range: -10 to +10
+
+        # Combined score (använd mode config weights)
+        tech_weight = mode_config.get('tech_weight', 0.7)
+        macro_weight = mode_config.get('macro_weight', 0.3)
+        combined_score = (net_technical_score * tech_weight) + (normalized_macro * macro_weight)
+
+        # MACRO BIAS LOGIC
+        # Macro < 4: Tone down buy signals (reduce score)
+        # Macro > 7: Strengthen signals (boost score)
+        if macro_score < 4:
+            combined_score -= 1  # Penalty for weak macro
+            signals.append('⚠️ Svag makro - ton down signals')
+        elif macro_score > 7:
+            combined_score += 1  # Bonus for strong macro
+            signals.append('✅ Stark makro - boost signals')
+
+        # BESLUT (baserat på combined_score och mode config)
+        min_buy_score = mode_config.get('min_buy_score', 4.0)
+        min_strong_score = mode_config.get('min_strong_score', 7.0)
+
+        if combined_score >= min_buy_score:
             action = 'BUY'
-            strength = 'STRONG' if net_score >= 8 else 'MODERATE'
-        elif net_score <= -5:
+            strength = 'STRONG' if combined_score >= min_strong_score else 'MODERATE'
+        elif combined_score <= -min_buy_score:
             action = 'SELL'
-            strength = 'STRONG' if net_score <= -8 else 'MODERATE'
+            strength = 'STRONG' if combined_score <= -min_strong_score else 'MODERATE'
         else:
             action = 'HOLD'
-            strength = 'WEAK'
+            strength = 'NEUTRAL'
 
         return {
             'action': action,
             'strength': strength,
-            'score': net_score,
+            'score': round(combined_score, 1),
+            'technical_score': net_technical_score,
+            'macro_score': macro_score,
             'reasons': signals,
             'summary': self._generate_summary(action, signals)
         }
 
-    def _calculate_trade_levels(self, analysis: Dict, signal: Dict) -> Dict:
+    def _calculate_trade_levels(self, analysis: Dict, signal: Dict, mode_config: Dict = None) -> Dict:
         """
         Beräknar entry, stop loss och targets enligt Marketmate
 
         Entry: Nuvarande pris eller över motstånd
-        Stop: Under stöd (max 2% risk)
+        Stop: Under stöd (varierar med mode)
         Target 1: +3-5% (1/3 position)
         Target 2: Nästa motstånd (1/3 position)
         Target 3: Hold så länge trend kvarstår
         """
+        # Default mode config om inte angiven
+        if mode_config is None:
+            from signal_modes import get_mode_config
+            mode_config = get_mode_config('conservative')
+
         price = analysis['price']
         support = analysis.get('support', price * 0.95)
         resistance = analysis.get('resistance', price * 1.05)
@@ -237,14 +322,52 @@ class MarketmateAI:
         else:
             entry = None
 
-        # Stop loss (under stöd, max 2% risk)
-        stop_loss = support * 0.98
+        # Stop loss (använd mode config buffer)
+        stop_loss_buffer = mode_config.get('stop_loss_buffer', 0.025)
+        support_based_stop = support * (1 - stop_loss_buffer * 0.2)  # 20% av buffer under support
+        price_based_stop = price * (1 - stop_loss_buffer)  # Full buffer under price
+
+        # Använd det som ger tightest stop (högre värde)
+        stop_loss = max(support_based_stop, price_based_stop)
+
         risk_percent = ((price - stop_loss) / price) * 100
 
-        # Targets (Marketmate 1/3-regel)
-        target_1 = price * 1.04  # +4% (första 1/3)
-        target_2 = resistance    # Nästa motstånd (andra 1/3)
-        target_3 = price * 1.15  # +15% (sista 1/3, låt den rulla)
+        # Targets (Marketmate 1/3-regel) - MÅSTE vara stigande!
+        # FIX: Multiplicera PROCENT-avståndet, inte prisnivån
+        target_multiplier = mode_config.get('target_multiplier', 1.0)
+
+        # Base percentages för Conservative mode
+        base_t1_pct = 0.04    # +4%
+        base_t2_pct = 0.071   # +7.1% (ca resistance distance)
+        base_t3_pct = 0.15    # +15%
+
+        # Apply multiplier till percentages (inte priset!)
+        adjusted_t1_pct = base_t1_pct * target_multiplier
+        adjusted_t2_pct = base_t2_pct * target_multiplier
+        adjusted_t3_pct = base_t3_pct * target_multiplier
+
+        # Beräkna targets från entry
+        target_1 = entry * (1 + adjusted_t1_pct)
+
+        # Target 2: Använd adjusted percentage, men säkerställ minst +3% över T1
+        target_2_from_pct = entry * (1 + adjusted_t2_pct)
+        target_2 = max(target_2_from_pct, target_1 * 1.03)
+
+        # Target 3: Använd adjusted percentage, men säkerställ minst +5% över T2
+        target_3_from_pct = entry * (1 + adjusted_t3_pct)
+        target_3 = max(target_3_from_pct, target_2 * 1.05)
+
+        # Räkna gain_percent korrekt från entry (inte price)
+        gain_1 = ((target_1 - entry) / entry) * 100
+        gain_2 = ((target_2 - entry) / entry) * 100
+        gain_3 = ((target_3 - entry) / entry) * 100
+
+        # Räkna R/R korrekt
+        risk = entry - stop_loss
+        reward_t1 = target_1 - entry
+        reward_t2 = target_2 - entry
+        rr_t1 = reward_t1 / risk if risk > 0 else 0
+        rr_t2 = reward_t2 / risk if risk > 0 else 0
 
         return {
             'entry': round(entry, 2) if entry else None,
@@ -252,40 +375,41 @@ class MarketmateAI:
             'targets': {
                 'target_1': {
                     'price': round(target_1, 2),
-                    'gain_percent': 4.0,
+                    'gain_percent': round(gain_1, 1),
                     'action': 'Sälj 1/3, flytta stop till break-even'
                 },
                 'target_2': {
                     'price': round(target_2, 2),
-                    'gain_percent': round(((target_2 - price) / price) * 100, 1),
+                    'gain_percent': round(gain_2, 1),
                     'action': 'Sälj 1/3, flytta stop under swing-low'
                 },
                 'target_3': {
                     'price': round(target_3, 2),
-                    'gain_percent': 15.0,
+                    'gain_percent': round(gain_3, 1),
                     'action': 'Håll så länge trend kvarstår'
                 }
             },
             'risk_percent': round(risk_percent, 2),
-            'risk_reward': round((target_1 - price) / (price - stop_loss), 2)
+            'risk_reward': round(rr_t2, 2)  # Använd T2 för mer realistisk R/R
         }
 
     def _generate_summary(self, action: str, reasons: List[str]) -> str:
         """Genererar kort sammanfattning enligt Marketmate-stil"""
         if action == 'BUY':
-            return f"Koplage. {'. '.join(reasons[:3])}."
+            return f"Köpläge. {'. '.join(reasons[:3])}."
         elif action == 'SELL':
-            return f"Saljlage. {'. '.join(reasons[:3])}."
+            return f"Säljläge. {'. '.join(reasons[:3])}."
         else:
-            return "Inget tydligt lage. Bevaka for signal."
+            return "Neutral. Inget tydligt läge — avvakta bättre setup."
 
-    def scan_watchlist(self, tickers: List[str], market: str = "SE") -> List[Dict]:
+    def scan_watchlist(self, tickers: List[str], market: str = "SE", mode: str = "conservative") -> List[Dict]:
         """
         Skannar flera aktier och returnerar de med starkast köpsignal
 
         Args:
             tickers: Lista med aktier att skanna
             market: Marknad
+            mode: Signal mode ('conservative' eller 'aggressive')
 
         Returns:
             Lista med analyser, sorterad efter signal-styrka
@@ -294,7 +418,7 @@ class MarketmateAI:
 
         for ticker in tickers:
             try:
-                analysis = self.analyze_stock(ticker, market)
+                analysis = self.analyze_stock(ticker, market, mode)
                 if 'error' not in analysis:
                     results.append(analysis)
             except Exception as e:
@@ -308,14 +432,19 @@ class MarketmateAI:
 
         return results
 
-    def get_buy_signals(self, tickers: List[str], market: str = "SE") -> List[Dict]:
+    def get_buy_signals(self, tickers: List[str], market: str = "SE", mode: str = "conservative") -> List[Dict]:
         """
         Returnerar endast aktier med köpsignal
+
+        Args:
+            tickers: Lista med aktier
+            market: Marknad
+            mode: Signal mode ('conservative' eller 'aggressive')
 
         Returns:
             Lista med köpsignaler
         """
-        all_results = self.scan_watchlist(tickers, market)
+        all_results = self.scan_watchlist(tickers, market, mode)
 
         buy_signals = [
             r for r in all_results

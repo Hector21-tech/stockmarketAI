@@ -38,14 +38,24 @@ export const api = {
     apiClient.get('/stock/historical', { params: { ticker, market, period, interval } }),
 
   // AI Analysis
-  analyzeStock: (ticker, market = 'SE') =>
-    apiClient.post('/analyze', { ticker, market }),
+  analyzeStock: (ticker, market = 'SE', mode = 'conservative') =>
+    apiClient.post('/analyze', { ticker, market, mode }),
 
   scanWatchlist: (tickers, market = 'SE') =>
     apiClient.post('/scan', { tickers, market }),
 
-  getBuySignals: (tickers, market = 'SE') =>
-    apiClient.post('/signals/buy', { tickers, market }),
+  getBuySignals: (tickers, market = 'SE', mode = 'conservative') =>
+    apiClient.post('/signals/buy', { tickers, market, mode }),
+
+  // Signal Modes
+  getSignalModes: () =>
+    apiClient.get('/signal-modes'),
+
+  getCurrentSignalMode: () =>
+    apiClient.get('/signal-mode'),
+
+  setSignalMode: (mode) =>
+    apiClient.post('/signal-mode', { mode }),
 
   // Positions
   getPositions: () => apiClient.get('/positions'),

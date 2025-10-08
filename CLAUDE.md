@@ -466,8 +466,51 @@ Social:         ░░░░░░░░░░   0%
 - 🎉 PHASE 2: CHARTS & DATA - 95% COMPLETE! 🎉
 - 🟡 Ready for Phase 4: AI & Analytics
 
+### 2025-10-08 (Signal Modes & Target Calculation Fix!)
+- 🎯 **SIGNAL MODES IMPLEMENTED** (Conservative 🛡️ & Aggressive ⚡)
+- ✅ Backend: signal_modes.py skapad med mode configurations
+  - Conservative: 70% Tech / 30% Macro, Min Score 4.0, Stop 2.5%, Targets 1.0x
+  - Aggressive: 85% Tech / 15% Macro, Min Score 2.5, Stop 1.2%, Targets 1.3x
+- ✅ Backend: ai_engine.py uppdaterad för mode-based scoring
+  - Dynamic tech/macro weights baserat på vald mode
+  - Mode-specific thresholds för BUY/STRONG BUY decisions
+  - Mode config passed through all analysis methods
+- 🔧 **CRITICAL FIX: Target Calculation**
+  - **Problem:** Multiplicerade prisnivån istället för procent-avståndet
+  - **Före:** target = price * (1.04 * 1.3) → 85.90 * 1.352 = 116.14 kr (+35%) ❌
+  - **Efter:** target = price * (1 + (0.04 * 1.3)) → 85.90 * 1.052 = 90.37 kr (+5.2%) ✓
+  - **Fix:** Multiply base percentage by multiplier, then apply to entry price
+  - **R/R Fix:** Correctly calculates (target - entry) / (entry - stop)
+  - **Result:** Aggressive mode now gives realistic targets and R/R ratios
+- ✅ Frontend: SettingsScreen med Signal Mode selector
+  - Visual mode cards med stats (Min Score, Stop Loss %, Tech/Macro weights)
+  - Mode descriptions (Conservative för aktier, Aggressive för leverage)
+  - Mode change confirmation med Alert
+  - AKTIV badge på vald mode
+- ✅ Frontend: SignalsScreen med mode badge header
+  - Color-coded mode indicator (Conservative blue, Aggressive orange)
+  - Shows active mode with icon och description
+  - Auto-reloads när mode ändras
+- ✅ Frontend: Dynamic formula display i StockDetailScreen
+  - Conservative: Formula: (Tech*0.7) + (Macro*0.3)
+  - Aggressive: Formula: (Tech*0.85) + (Macro*0.15)
+  - Mode icon och namn visas i analys popup
+- ✅ Frontend: Mode integration överallt
+  - WatchlistScreen: scanAndRank använder current mode
+  - StockDetailScreen: handleAnalyze använder current mode
+  - SignalsScreen: fetchSignals använder current mode
+  - All screens auto-load mode on mount
+- ✅ API endpoints added:
+  - GET /api/signal-modes → Lista alla tillgängliga modes
+  - GET /api/signal-mode → Hämta nuvarande mode + config
+  - POST /api/signal-mode → Byt mode (saved to signal_mode_settings.json)
+  - POST /api/signals/buy → Now accepts 'mode' parameter
+  - POST /api/analyze → Now accepts 'mode' parameter
+- ✅ Backend persistence: signal_mode_settings.json för sparad mode
+- 🎯 **Next:** AI-Hybrid Mode med Google Gemini 2.0 (60% Tech, 30% AI, 10% Macro)
+
 ---
 
-**Last Updated:** 2025-10-07
-**Next Review:** After Phase 4 completion
+**Last Updated:** 2025-10-08
+**Next Review:** After AI-Hybrid mode implementation
 **Questions?** Ask Professor Claude! 🎓

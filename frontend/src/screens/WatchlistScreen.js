@@ -3,7 +3,7 @@
  * Professional watchlist with real-time prices and search
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   RefreshControl,
   TextInput,
   Alert,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -31,9 +32,14 @@ export default function WatchlistScreen({ navigation }) {
   const [isSearching, setIsSearching] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [rankings, setRankings] = useState({}); // {ticker: {score, signal, strength}}
+  const [isScanning, setIsScanning] = useState(false);
+  const [showRanked, setShowRanked] = useState(false);
+  const [signalMode, setSignalMode] = useState('conservative');
 
   useEffect(() => {
     loadWatchlist();
+    loadSignalMode();
   }, []);
 
   useEffect(() => {
@@ -143,6 +149,15 @@ export default function WatchlistScreen({ navigation }) {
     }
   };
 
+  const loadSignalMode = async () => {
+    try {
+      const response = await api.getCurrentSignalMode();
+      setSignalMode(response.data.mode);
+    } catch (error) {
+      console.error('Error loading signal mode:', error);
+    }
+  };
+
   const fetchWatchlistData = async () => {
     setLoading(true);
     try {
@@ -185,8 +200,81 @@ export default function WatchlistScreen({ navigation }) {
     }
   };
 
+  const scanAndRank = async () => {
+    setIsScanning(true);
+    try {
+      // Hämta aktuell signal mode först
+      const modeResponse = await api.getCurrentSignalMode();
+      const currentMode = modeResponse.data.mode;
+      setSignalMode(currentMode);
+
+      // Analyze all stocks in watchlist
+      const analyses = await Promise.all(
+        watchlist.map(async (ticker) => {
+          try {
+            const response = await api.analyzeStock(ticker, 'SE', currentMode);
+
+            // Check if response has valid signal data
+            if (!response?.data?.signal) {
+              console.warn(`No signal data for ${ticker}`);
+              return null;
+            }
+
+            const signal = response.data.signal;
+
+            // Ensure all required fields exist
+            if (typeof signal.score === 'undefined' || !signal.action) {
+              console.warn(`Invalid signal data for ${ticker}:`, signal);
+              return null;
+            }
+
+            return {
+              ticker,
+              score: signal.score,
+              signal: signal.action,
+              strength: signal.strength || 'NEUTRAL',
+              technical_score: signal.technical_score || 0,
+              macro_score: signal.macro_score || 0,
+            };
+          } catch (error) {
+            console.error(`Error analyzing ${ticker}:`, error);
+            return null;
+          }
+        })
+      );
+
+      // Filter out nulls and create rankings object
+      const rankingsData = {};
+      const validAnalyses = analyses.filter(a => a !== null);
+
+      validAnalyses.forEach(analysis => {
+        rankingsData[analysis.ticker] = analysis;
+      });
+
+      setRankings(rankingsData);
+      setShowRanked(true);
+
+      const failedCount = watchlist.length - validAnalyses.length;
+      const message = failedCount > 0
+        ? `${validAnalyses.length} aktier analyserade (${failedCount} misslyckades)`
+        : `${validAnalyses.length} aktier analyserade`;
+
+      Alert.alert('Ranking klar!', message);
+    } catch (error) {
+      console.error('Error scanning watchlist:', error);
+      Alert.alert('Fel', 'Kunde inte skanna watchlist');
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
   const selectStock = async (stock) => {
     const ticker = stock.ticker;
+
+    // Stäng dropdown och keyboard direkt
+    Keyboard.dismiss();
+    setNewTicker('');
+    setSearchResults([]);
 
     if (watchlist.includes(ticker)) {
       Alert.alert('Finns redan', `${stock.name} finns redan i watchlist`);
@@ -204,8 +292,6 @@ export default function WatchlistScreen({ navigation }) {
       const newWatchlist = [...watchlist, ticker];
       setWatchlist(newWatchlist);
       await AsyncStorage.setItem('watchlist', JSON.stringify(newWatchlist));
-      setNewTicker('');
-      setSearchResults([]);
       Alert.alert('Tillagd!', `${stock.name} har lagts till i watchlist`);
     } catch (error) {
       console.error('Error adding stock:', error);
@@ -248,38 +334,107 @@ export default function WatchlistScreen({ navigation }) {
     );
   };
 
-  const renderStockItem = ({ item }) => (
-    <TouchableOpacity
-      onPress={() => navigation.navigate('StockDetail', { ticker: item.ticker, market: 'SE' })}
-      onLongPress={() => removeFromWatchlist(item.ticker)}
-      activeOpacity={0.7}
-    >
-      <Card variant="default" style={{ marginBottom: theme.spacing.sm }}>
-        <View style={styles.stockRow}>
-          {/* Left side - Ticker and name */}
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.ticker, { color: theme.colors.text.primary, ...theme.typography.styles.h6 }]}>
-              {item.ticker}
-            </Text>
-            <Text style={[styles.stockName, { color: theme.colors.text.tertiary }]} numberOfLines={1}>
-              {item.name || 'Loading...'}
-            </Text>
+  const getSignalColor = (signal, strength) => {
+    if (signal === 'BUY') {
+      return strength === 'STRONG' ? theme.colors.bullish : theme.colors.warning || '#FFA500';
+    }
+    if (signal === 'SELL') {
+      return theme.colors.bearish;
+    }
+    return theme.colors.text.tertiary;
+  };
+
+  const renderStockItem = ({ item }) => {
+    const ranking = rankings[item.ticker];
+    const hasRanking = showRanked && ranking;
+
+    return (
+      <TouchableOpacity
+        onPress={() => navigation.navigate('StockDetail', { ticker: item.ticker, market: 'SE' })}
+        onLongPress={() => removeFromWatchlist(item.ticker)}
+        activeOpacity={0.7}
+      >
+        <Card variant="default" style={{ marginBottom: theme.spacing.sm, paddingVertical: 12, paddingHorizontal: theme.spacing.base }}>
+          {/* Row 1: Ticker + Name | Price */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+            {/* Left: Ticker + Name */}
+            <View style={{ flex: 1, marginRight: theme.spacing.sm }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                <Text style={{
+                  color: theme.colors.text.primary,
+                  fontSize: 16,
+                  fontWeight: '700',
+                  letterSpacing: 0.3,
+                }}>
+                  {item.ticker}
+                </Text>
+                {hasRanking && (
+                  <View style={{
+                    backgroundColor: getSignalColor(ranking.signal, ranking.strength),
+                    paddingHorizontal: 6,
+                    paddingVertical: 2,
+                    borderRadius: 4,
+                    marginLeft: 8,
+                  }}>
+                    <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '700', textTransform: 'uppercase' }}>
+                      {ranking.signal} {ranking.score.toFixed(1)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <Text style={{
+                color: theme.colors.text.secondary,
+                fontSize: 13,
+                fontWeight: '500',
+              }} numberOfLines={1}>
+                {item.name || 'Loading...'}
+              </Text>
+            </View>
+
+            {/* Right: Price */}
+            <View style={{ alignItems: 'flex-end' }}>
+              <PriceText
+                value={item.price}
+                size="md"
+                suffix=" kr"
+                style={{ fontWeight: '600', fontSize: 15 }}
+              />
+            </View>
           </View>
 
-          {/* Right side - Price and change */}
-          <View style={{ alignItems: 'flex-end' }}>
-            <PriceText
-              value={item.price}
-              size="md"
-              suffix=" SEK"
-            />
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: theme.spacing.xs }}>
+          {/* Row 2: Score Details (if ranked) */}
+          {hasRanking && (
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: theme.colors.alpha(theme.colors.text.tertiary, 0.05),
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              borderRadius: 4,
+              marginBottom: 8,
+              alignSelf: 'flex-start',
+            }}>
+              <Text style={{ color: theme.colors.text.tertiary, fontSize: 10, fontWeight: '600' }}>
+                📊 {ranking.technical_score}
+              </Text>
+              <Text style={{ color: theme.colors.text.tertiary, fontSize: 10, marginHorizontal: 6 }}>
+                •
+              </Text>
+              <Text style={{ color: theme.colors.text.tertiary, fontSize: 10, fontWeight: '600' }}>
+                🌍 {ranking.macro_score}
+              </Text>
+            </View>
+          )}
+
+          {/* Row 3: Change + Change% */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <PriceText
                 value={item.change}
                 size="sm"
                 showChange
                 colorize
-                style={{ marginRight: theme.spacing.xs }}
+                style={{ marginRight: 6, fontWeight: '600', fontSize: 13 }}
               />
               <PriceText
                 value={item.changePercent}
@@ -287,13 +442,15 @@ export default function WatchlistScreen({ navigation }) {
                 showChange
                 colorize
                 suffix="%"
+                style={{ fontWeight: '600', fontSize: 13 }}
               />
             </View>
+            <Text style={{ color: theme.colors.text.tertiary, fontSize: 14, opacity: 0.5 }}>›</Text>
           </View>
-        </View>
-      </Card>
-    </TouchableOpacity>
-  );
+        </Card>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background.primary }]} edges={['top']}>
@@ -331,7 +488,7 @@ export default function WatchlistScreen({ navigation }) {
       {/* Search Results Dropdown */}
       {searchResults.length > 0 && newTicker.trim().length >= 2 && (
         <View style={[styles.searchDropdown, {
-          backgroundColor: '#FFFFFF',
+          backgroundColor: theme.colors.background.secondary,
           borderColor: theme.colors.primary,
           borderWidth: 2,
           shadowColor: '#000',
@@ -341,10 +498,16 @@ export default function WatchlistScreen({ navigation }) {
           elevation: 8,
           zIndex: 9999,
           position: 'relative',
+          marginBottom: theme.spacing.sm,
         }]}>
-          <View style={{ backgroundColor: theme.colors.primary, padding: 8 }}>
-            <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: 'bold' }}>
-              {searchResults.length} resultat funna
+          <View style={{
+            backgroundColor: theme.colors.primary,
+            padding: 12,
+            borderTopLeftRadius: 6,
+            borderTopRightRadius: 6,
+          }}>
+            <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '700' }}>
+              ✓ {searchResults.length} resultat funna
             </Text>
           </View>
           {searchResults.map((stock, index) => {
@@ -353,39 +516,58 @@ export default function WatchlistScreen({ navigation }) {
               <TouchableOpacity
                 key={`${stock.ticker}-${index}`}
                 style={[styles.searchResultItem, {
-                  borderBottomColor: '#E0E0E0',
+                  borderBottomColor: theme.colors.border.primary,
                   borderBottomWidth: index < searchResults.length - 1 ? 1 : 0,
-                  backgroundColor: index % 2 === 0 ? '#FFFFFF' : '#F5F5F5',
+                  backgroundColor: index % 2 === 0
+                    ? theme.colors.background.secondary
+                    : theme.colors.background.tertiary,
+                  paddingVertical: 14,
                 }]}
                 onPress={() => {
                   console.log('Selected stock:', stock);
                   selectStock(stock);
                 }}
-                activeOpacity={0.7}
+                activeOpacity={0.6}
               >
                 <View style={{ flex: 1 }}>
                   <Text style={{
-                    fontSize: 16,
+                    fontSize: 18,
                     fontWeight: '700',
                     color: theme.colors.primary,
-                    marginBottom: 4,
+                    marginBottom: 6,
+                    letterSpacing: 0.5,
                   }}>
                     {stock.ticker || 'NO TICKER'}
                   </Text>
                   <Text style={{
-                    fontSize: 14,
-                    fontWeight: '500',
-                    color: '#000000',
+                    fontSize: 15,
+                    fontWeight: '600',
+                    color: theme.colors.text.primary,
                     marginBottom: 4,
                   }} numberOfLines={1}>
                     {stock.name || 'NO NAME'}
                   </Text>
                   <Text style={{
-                    fontSize: 11,
-                    color: '#666666',
+                    fontSize: 12,
+                    color: theme.colors.text.tertiary,
                     textTransform: 'uppercase',
+                    fontWeight: '600',
                   }}>
                     {stock.exchange} • {stock.market}
+                  </Text>
+                </View>
+                <View style={{
+                  backgroundColor: theme.colors.alpha(theme.colors.primary, 0.1),
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  borderRadius: 6,
+                }}>
+                  <Text style={{
+                    color: theme.colors.primary,
+                    fontSize: 16,
+                    fontWeight: '700',
+                  }}>
+                    +
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -395,15 +577,29 @@ export default function WatchlistScreen({ navigation }) {
       )}
 
       {/* Loading indicator for search */}
-      {isSearching && newTicker.trim().length >= 2 && (
-        <View style={{ paddingHorizontal: theme.spacing.base, paddingVertical: theme.spacing.sm }}>
-          <Text style={[styles.searchingText, { color: theme.colors.text.tertiary }]}>
-            Söker...
+      {isSearching && newTicker.trim().length >= 2 && searchResults.length === 0 && (
+        <View style={{
+          marginHorizontal: theme.spacing.base,
+          paddingVertical: theme.spacing.md,
+          paddingHorizontal: theme.spacing.base,
+          backgroundColor: theme.colors.alpha(theme.colors.primary, 0.1),
+          borderRadius: 8,
+          borderWidth: 1,
+          borderColor: theme.colors.primary,
+          marginBottom: theme.spacing.sm,
+        }}>
+          <Text style={{
+            color: theme.colors.primary,
+            fontSize: 14,
+            fontWeight: '600',
+            textAlign: 'center',
+          }}>
+            🔍 Söker efter "{newTicker}"...
           </Text>
         </View>
       )}
 
-      {/* Stock Count & Connection Status */}
+      {/* Stock Count, Scan Button & Connection Status */}
       <View style={{
         paddingHorizontal: theme.spacing.base,
         paddingVertical: theme.spacing.sm,
@@ -414,44 +610,76 @@ export default function WatchlistScreen({ navigation }) {
         <Text style={[styles.count, { color: theme.colors.text.secondary }]}>
           {watchlist.length} / 30 aktier
         </Text>
-        <View style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          backgroundColor: wsConnected ? theme.colors.alpha(theme.colors.bullish, 0.15) : theme.colors.alpha(theme.colors.bearish, 0.15),
-          paddingHorizontal: 10,
-          paddingVertical: 5,
-          borderRadius: 12,
-        }}>
-          <View style={{
-            width: 8,
-            height: 8,
-            borderRadius: 4,
-            backgroundColor: wsConnected ? theme.colors.bullish : theme.colors.bearish,
-            marginRight: 6,
-          }} />
-          <Text style={{
-            fontSize: 11,
-            color: wsConnected ? theme.colors.bullish : theme.colors.bearish,
-            fontWeight: '600',
-            textTransform: 'uppercase',
-          }}>
-            {wsConnected ? 'Live' : 'Offline'}
-          </Text>
-          {lastUpdate && wsConnected && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          {/* Scan & Rank Button */}
+          <TouchableOpacity
+            onPress={scanAndRank}
+            disabled={isScanning || stocks.length === 0}
+            style={{
+              backgroundColor: theme.colors.primary,
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              borderRadius: 12,
+              opacity: (isScanning || stocks.length === 0) ? 0.5 : 1,
+            }}
+          >
             <Text style={{
-              fontSize: 9,
-              color: theme.colors.text.tertiary,
-              marginLeft: 6,
+              fontSize: 11,
+              color: '#fff',
+              fontWeight: '600',
             }}>
-              {lastUpdate.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              {isScanning ? 'Skannar...' : showRanked ? 'Uppdatera' : '🔍 Ranka'}
             </Text>
-          )}
+          </TouchableOpacity>
+
+          {/* Live Status */}
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: wsConnected ? theme.colors.alpha(theme.colors.bullish, 0.15) : theme.colors.alpha(theme.colors.bearish, 0.15),
+            paddingHorizontal: 10,
+            paddingVertical: 5,
+            borderRadius: 12,
+          }}>
+            <View style={{
+              width: 8,
+              height: 8,
+              borderRadius: 4,
+              backgroundColor: wsConnected ? theme.colors.bullish : theme.colors.bearish,
+              marginRight: 6,
+            }} />
+            <Text style={{
+              fontSize: 11,
+              color: wsConnected ? theme.colors.bullish : theme.colors.bearish,
+              fontWeight: '600',
+              textTransform: 'uppercase',
+            }}>
+              {wsConnected ? 'Live' : 'Offline'}
+            </Text>
+            {lastUpdate && wsConnected && (
+              <Text style={{
+                fontSize: 9,
+                color: theme.colors.text.tertiary,
+                marginLeft: 6,
+              }}>
+                {lastUpdate.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </Text>
+            )}
+          </View>
         </View>
       </View>
 
       {/* Stock List */}
       <FlatList
-        data={stocks}
+        data={
+          showRanked && Object.keys(rankings).length > 0
+            ? [...stocks].sort((a, b) => {
+                const scoreA = rankings[a.ticker]?.score ?? -100;
+                const scoreB = rankings[b.ticker]?.score ?? -100;
+                return scoreB - scoreA; // Högst först
+              })
+            : stocks
+        }
         renderItem={renderStockItem}
         keyExtractor={(item) => item.ticker}
         contentContainerStyle={{
@@ -531,6 +759,9 @@ const styles = StyleSheet.create({
   },
   searchResultItem: {
     padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   searchResultTicker: {
     fontSize: 16,
@@ -548,5 +779,19 @@ const styles = StyleSheet.create({
   searchingText: {
     fontSize: 12,
     fontStyle: 'italic',
+  },
+  signalBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  signalText: {
+    fontSize: 10,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  scoreDetails: {
+    fontSize: 10,
+    marginTop: 2,
   },
 });

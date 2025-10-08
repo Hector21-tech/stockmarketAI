@@ -12,10 +12,12 @@ from ai_engine import MarketmateAI
 from trade_manager import TradeManager
 from notification_service import NotificationService
 from macro_data import MacroDataFetcher
+from signal_modes import get_available_modes, get_mode_config, validate_mode
 import json
 import pandas as pd
 import threading
 import time
+import os
 
 app = Flask(__name__)
 
@@ -235,11 +237,12 @@ def analyze_stock():
     data = request.json
     ticker = data.get('ticker')
     market = data.get('market', 'SE')
+    mode = data.get('mode', 'conservative')  # Default: conservative
 
     if not ticker:
         return jsonify({'error': 'ticker required'}), 400
 
-    analysis = ai_engine.analyze_stock(ticker, market)
+    analysis = ai_engine.analyze_stock(ticker, market, mode=mode)
 
     return jsonify(analysis)
 
@@ -268,16 +271,90 @@ def get_buy_signals():
     data = request.json
     tickers = data.get('tickers', [])
     market = data.get('market', 'SE')
+    mode = data.get('mode', 'conservative')
 
     if not tickers:
         return jsonify({'error': 'tickers required'}), 400
 
-    signals = ai_engine.get_buy_signals(tickers, market)
+    signals = ai_engine.get_buy_signals(tickers, market, mode)
 
     return jsonify({
         'signals': signals,
-        'count': len(signals)
+        'count': len(signals),
+        'mode': mode
     })
+
+
+# ============ SIGNAL MODES ENDPOINTS ============
+
+@app.route('/api/signal-modes', methods=['GET'])
+def get_signal_modes():
+    """Hämtar tillgängliga signal modes"""
+    modes = get_available_modes()
+    return jsonify({
+        'modes': modes,
+        'count': len(modes)
+    })
+
+
+@app.route('/api/signal-mode', methods=['GET'])
+def get_current_signal_mode():
+    """Hämtar nuvarande signal mode från settings fil"""
+    settings_file = 'signal_mode_settings.json'
+
+    # Default mode
+    default_mode = 'conservative'
+
+    if os.path.exists(settings_file):
+        try:
+            with open(settings_file, 'r') as f:
+                settings = json.load(f)
+                current_mode = settings.get('mode', default_mode)
+        except:
+            current_mode = default_mode
+    else:
+        current_mode = default_mode
+
+    # Validera att mode finns
+    if not validate_mode(current_mode):
+        current_mode = default_mode
+
+    config = get_mode_config(current_mode)
+
+    return jsonify({
+        'mode': current_mode,
+        'config': config
+    })
+
+
+@app.route('/api/signal-mode', methods=['POST'])
+def set_signal_mode():
+    """Sätter signal mode"""
+    data = request.json
+    mode = data.get('mode', 'conservative')
+
+    # Validera mode
+    if not validate_mode(mode):
+        return jsonify({'error': 'Invalid mode. Must be "conservative" or "aggressive"'}), 400
+
+    # Spara till settings fil
+    settings_file = 'signal_mode_settings.json'
+    settings = {'mode': mode}
+
+    try:
+        with open(settings_file, 'w') as f:
+            json.dump(settings, f)
+
+        config = get_mode_config(mode)
+
+        return jsonify({
+            'success': True,
+            'mode': mode,
+            'config': config,
+            'message': f'Signal mode changed to {mode}'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 # ============ POSITION MANAGEMENT ENDPOINTS ============

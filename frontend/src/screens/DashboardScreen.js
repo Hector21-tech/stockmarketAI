@@ -54,9 +54,16 @@ export default function DashboardScreen({ navigation }) {
       // Fetch stock info (name) for each ticker
       const marketDataWithNames = {};
       for (const ticker of tickers) {
+        const quote = quotesData[ticker];
+
+        // Skip if quote is missing
+        if (!quote) {
+          console.warn(`No quote data for ${ticker}`);
+          continue;
+        }
+
         try {
           const infoResponse = await api.getStockInfo(ticker, 'SE');
-          const quote = quotesData[ticker];
           marketDataWithNames[ticker] = {
             price: quote.price,
             change: quote.change,
@@ -64,7 +71,6 @@ export default function DashboardScreen({ navigation }) {
             name: infoResponse.data.name || ticker,
           };
         } catch (error) {
-          const quote = quotesData[ticker];
           marketDataWithNames[ticker] = {
             price: quote.price,
             change: quote.change,

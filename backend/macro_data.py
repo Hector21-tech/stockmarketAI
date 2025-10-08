@@ -491,6 +491,142 @@ class MacroDataFetcher:
             'seasonality': self.get_seasonality_data(),
         }
 
+    def get_usd_sek(self) -> Optional[Dict]:
+        """
+        Hämtar USD/SEK exchange rate
+
+        Returns:
+            Dict med current value, change, changePercent
+        """
+        try:
+            ticker = yf.Ticker('USDSEK=X')
+            hist = ticker.history(period='5d')
+
+            if hist.empty:
+                return None
+
+            current_value = float(hist['Close'].iloc[-1])
+            previous_value = float(hist['Close'].iloc[-2]) if len(hist) > 1 else current_value
+            change = current_value - previous_value
+            change_percent = (change / previous_value * 100) if previous_value != 0 else 0
+
+            return {
+                'value': current_value,
+                'change': change,
+                'changePercent': change_percent,
+                'unit': 'SEK',
+                'label': 'USD/SEK',
+                'timestamp': datetime.now().isoformat(),
+            }
+        except Exception as e:
+            print(f"Error fetching USD/SEK: {e}")
+            return None
+
+    def get_macro_score(self) -> Dict:
+        """
+        Beräknar MakroScore 0-10 enligt MarketMate viktning:
+        - Räntor (30%)
+        - Inflation (20%)
+        - PMI (20%)
+        - VIX (15%)
+        - USD/SEK (10%)
+        - Övrigt (5%)
+
+        Returns:
+            Dict med macro_score (0-10) och breakdown
+        """
+        # Hämta alla indikatorer
+        treasury_data = self.get_treasury_10y()
+        vix_data = self.get_vix()
+        usd_sek_data = self.get_usd_sek()
+
+        # Default scores
+        interest_score = 0  # -2 to +2
+        inflation_score = 0  # -2 to +2
+        pmi_score = 0  # -2 to +2
+        vix_score = 0  # -2 to +1
+        forex_score = 0  # -1 to +1
+
+        # 1. RÄNTOR (30%) - 10Y Treasury som proxy
+        if treasury_data:
+            treasury_yield = treasury_data['value']
+            # Logik: Stigande = negativt, Sjunkande = positivt
+            # Används treasury change som proxy
+            if treasury_yield > 4.5:
+                interest_score = -2  # Höga räntor = negativt
+            elif treasury_yield > 4.0:
+                interest_score = -1
+            elif treasury_yield > 3.5:
+                interest_score = 0
+            elif treasury_yield > 3.0:
+                interest_score = 1
+            else:
+                interest_score = 2  # Låga räntor = positivt
+
+        # 2. INFLATION (20%) - Antar 2-3% som normalt (ingen live data)
+        # Placeholder: Neutral 0 (kan inte hämta live CPI data enkelt)
+        inflation_score = 0
+
+        # 3. PMI (20%) - Placeholder (ingen enkel källa)
+        # Antar 50-55 = neutral/expansion
+        pmi_score = 1  # Optimistisk default
+
+        # 4. VIX (15%)
+        if vix_data:
+            vix_value = vix_data['value']
+            if vix_value >= 25:
+                vix_score = -2  # Hög rädsla = negativt
+            elif vix_value >= 20:
+                vix_score = -1
+            elif vix_value >= 15:
+                vix_score = 0
+            else:
+                vix_score = 1  # Låg rädsla = positivt
+
+        # 5. USD/SEK (10%)
+        if usd_sek_data:
+            usd_sek_value = usd_sek_data['value']
+            if usd_sek_value >= 10.8:
+                forex_score = 1  # Stark USD = positivt för export
+            elif usd_sek_value >= 10.3:
+                forex_score = 0
+            else:
+                forex_score = -1  # Svag USD = negativt
+
+        # Beräkna viktad score (normalisera till 0-10)
+        # Raw weighted score: -10 to +10 baserat på vikter
+        weighted_score = (
+            interest_score * 0.30 * 2.5 +  # Max ±2 * 0.30 * 2.5 = ±1.5
+            inflation_score * 0.20 * 2.5 +  # Max ±2 * 0.20 * 2.5 = ±1.0
+            pmi_score * 0.20 * 2.5 +  # Max ±2 * 0.20 * 2.5 = ±1.0
+            vix_score * 0.15 * 2.5 +  # Max ±2 * 0.15 * 2.5 = ±0.75
+            forex_score * 0.10 * 2.5  # Max ±1 * 0.10 * 2.5 = ±0.25
+        )  # Total: ±4.5
+
+        # Normalisera till 0-10 skala (5 = neutral)
+        macro_score = 5 + weighted_score  # Range: 0.5 to 9.5
+        macro_score = max(0, min(10, macro_score))  # Clamp 0-10
+
+        # Klassificering
+        if macro_score >= 8:
+            classification = "Stark positiv makrotrend"
+        elif macro_score >= 5:
+            classification = "Neutral/stabil"
+        else:
+            classification = "Svag/negativ"
+
+        return {
+            'score': round(macro_score, 1),
+            'classification': classification,
+            'breakdown': {
+                'interest_rate': {'score': interest_score, 'weight': '30%', 'value': treasury_data['value'] if treasury_data else None},
+                'inflation': {'score': inflation_score, 'weight': '20%', 'value': None},  # Placeholder
+                'pmi': {'score': pmi_score, 'weight': '20%', 'value': None},  # Placeholder
+                'vix': {'score': vix_score, 'weight': '15%', 'value': vix_data['value'] if vix_data else None},
+                'forex': {'score': forex_score, 'weight': '10%', 'value': usd_sek_data['value'] if usd_sek_data else None},
+            }
+        }
+
     def _calculate_market_regime(self) -> str:
         """
         Beräknar market regime baserat på makroindikatorer

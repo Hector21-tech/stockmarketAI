@@ -22,6 +22,7 @@ export default function SignalsScreen() {
   const { theme } = useTheme();
   const [signals, setSignals] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [signalMode, setSignalMode] = useState('conservative');
   const [watchlist] = useState([
     'VOLVO-B',
     'HM-B',
@@ -34,13 +35,29 @@ export default function SignalsScreen() {
   ]);
 
   useEffect(() => {
+    loadSignalMode();
     fetchSignals();
   }, []);
+
+  const loadSignalMode = async () => {
+    try {
+      const response = await api.getCurrentSignalMode();
+      setSignalMode(response.data.mode);
+    } catch (error) {
+      console.error('Error loading signal mode:', error);
+    }
+  };
 
   const fetchSignals = async () => {
     setLoading(true);
     try {
-      const response = await api.getBuySignals(watchlist, 'SE');
+      // Hämta aktuell signal mode först
+      const modeResponse = await api.getCurrentSignalMode();
+      const currentMode = modeResponse.data.mode;
+      setSignalMode(currentMode);
+
+      // Använd mode för att hämta signaler
+      const response = await api.getBuySignals(watchlist, 'SE', currentMode);
       setSignals(response.data.signals || []);
     } catch (error) {
       console.error('Error fetching signals:', error);
@@ -208,8 +225,47 @@ export default function SignalsScreen() {
     );
   }
 
+  const getModeConfig = () => {
+    if (signalMode === 'aggressive') {
+      return {
+        icon: '⚡',
+        name: 'Aggressive',
+        color: theme.colors.warning || '#FF9800',
+        description: 'Tidigt inträde för leverage-produkter',
+      };
+    }
+    return {
+      icon: '🛡️',
+      name: 'Conservative',
+      color: theme.colors.primary,
+      description: 'Bekräftade signaler för aktieköp',
+    };
+  };
+
+  const modeConfig = getModeConfig();
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
+      {/* Mode Badge Header */}
+      <View style={[styles.modeHeader, { backgroundColor: theme.colors.background.secondary, borderBottomColor: theme.colors.border }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={{ fontSize: 18, marginRight: 8 }}>{modeConfig.icon}</Text>
+          <View>
+            <Text style={[styles.modeName, { color: theme.colors.text.primary }]}>
+              Signal Mode: {modeConfig.name}
+            </Text>
+            <Text style={[styles.modeDescription, { color: theme.colors.text.secondary }]}>
+              {modeConfig.description}
+            </Text>
+          </View>
+        </View>
+        <View style={[styles.modeBadge, { backgroundColor: modeConfig.color + '20', borderColor: modeConfig.color }]}>
+          <Text style={[styles.modeBadgeText, { color: modeConfig.color }]}>
+            {signalMode.toUpperCase()}
+          </Text>
+        </View>
+      </View>
+
       <FlatList
         data={signals}
         renderItem={renderSignalItem}
@@ -252,6 +308,33 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
+  },
+  modeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  modeName: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  modeDescription: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  modeBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  modeBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   header: {
     flexDirection: 'row',

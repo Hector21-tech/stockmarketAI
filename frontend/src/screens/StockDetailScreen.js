@@ -37,6 +37,7 @@ export default function StockDetailScreen({ route, navigation }) {
   const [period, setPeriod] = useState('3mo');
   const [bottomIndicator, setBottomIndicator] = useState('volume'); // 'volume' | 'rsi' | 'macd' | 'stochastic' | 'none'
   const [isInWatchlist, setIsInWatchlist] = useState(false);
+  const [signalMode, setSignalMode] = useState('conservative');
 
   const periods = [
     { label: '1V', value: '5d' },
@@ -51,7 +52,17 @@ export default function StockDetailScreen({ route, navigation }) {
   useEffect(() => {
     loadStockData();
     checkWatchlistStatus();
+    loadSignalMode();
   }, [ticker, period]);
+
+  const loadSignalMode = async () => {
+    try {
+      const response = await api.getCurrentSignalMode();
+      setSignalMode(response.data.mode);
+    } catch (error) {
+      console.error('Error loading signal mode:', error);
+    }
+  };
 
   const checkWatchlistStatus = async () => {
     try {
@@ -225,12 +236,77 @@ export default function StockDetailScreen({ route, navigation }) {
     }
   };
 
-  const handleBuy = () => {
-    navigation.navigate('Signals');
+  const handleAnalyze = async () => {
+    try {
+      const response = await api.analyzeStock(ticker, market, signalMode);
+      const data = response.data;
+
+      // Extract from correct structure
+      const signal = data.signal;
+      const trade = data.trade_setup;
+      const analysis = data.analysis;
+      const macro = data.macro_context;
+
+      // Build comprehensive analysis message
+      const techScore = signal.technical_score ?? 0;
+      const macroScore = signal.macro_score ?? 5;
+      const totalScore = signal.score ?? 0;
+
+      // Dynamisk formula baserad på mode
+      const techWeight = signalMode === 'aggressive' ? '0.85' : '0.7';
+      const macroWeight = signalMode === 'aggressive' ? '0.15' : '0.3';
+      const modeIcon = signalMode === 'aggressive' ? '⚡' : '🛡️';
+      const modeName = signalMode === 'aggressive' ? 'AGGRESSIVE' : 'CONSERVATIVE';
+
+      const message = `
+🎯 TOTAL SCORE: ${totalScore}/10 — ${signal.strength}
+   Technical: ${techScore}/10
+   Macro: ${macroScore}/10
+   Formula: (Tech*${techWeight}) + (Macro*${macroWeight})
+   Mode: ${modeIcon} ${modeName}
+
+📊 SIGNAL: ${signal.action}
+${signal.summary}
+
+💰 TRADE SETUP:
+Entry: ${trade.entry ? trade.entry.toFixed(2) : 'N/A'} SEK
+Target 1: ${trade.targets?.target_1?.price?.toFixed(2) ?? 'N/A'} SEK (+${trade.targets?.target_1?.gain_percent ?? 0}%)
+Target 2: ${trade.targets?.target_2?.price?.toFixed(2) ?? 'N/A'} SEK (+${trade.targets?.target_2?.gain_percent ?? 0}%)
+Stop Loss: ${trade.stop_loss?.toFixed(2) ?? 'N/A'} SEK
+R/R: ${trade.risk_reward?.toFixed(2) ?? 'N/A'}:1
+
+📈 TEKNISK ANALYS:
+Trend: ${analysis.trend.toUpperCase()} (Pris: ${analysis.price.toFixed(2)} / EMA20: ${analysis.ema_20.toFixed(2)})
+RSI: ${analysis.rsi.toFixed(1)} — ${analysis.rsi_status} (${analysis.rsi_divergence} divergence)
+MACD: ${analysis.macd.crossover} crossover
+Stochastic: %K=${analysis.stochastic.k.toFixed(1)} — ${analysis.stochastic.status}
+Volym: ${(analysis.volume / 1000000).toFixed(2)}M
+
+🌍 MAKRO CONTEXT:
+Regime: ${macro.regime?.toUpperCase() ?? 'Unknown'}
+VIX: ${macro.vix?.toFixed(2) ?? 'N/A'} (${macro.fear_greed ?? 'N/A'})
+Macro Score: ${macro.macro_score ?? 5}/10 — ${macro.macro_classification ?? 'Unknown'}
+
+✅ ANLEDNINGAR:
+${signal.reasons.map((r, i) => `${i + 1}. ${r}`).join('\n')}
+
+⏱ TIDSHORISONT: ${trade.risk_reward >= 2 ? 'Medellång (2-4 veckor)' : 'Kort (1-2 veckor)'}
+      `.trim();
+
+      Alert.alert(`${ticker} — ${signal.action} Signal`, message, [
+        { text: 'Lägg till Position', onPress: handleAddPosition },
+        { text: 'Stäng', style: 'cancel' }
+      ]);
+    } catch (error) {
+      console.error('Error analyzing stock:', error);
+      Alert.alert('Fel', 'Kunde inte analysera aktie');
+    }
   };
 
-  const handleSell = () => {
-    navigation.navigate('Positions');
+  const handleAddPosition = () => {
+    Alert.alert('Lägg till Position', 'Position modal kommer snart!', [
+      { text: 'OK' }
+    ]);
   };
 
   if (loading) {
@@ -769,6 +845,24 @@ export default function StockDetailScreen({ route, navigation }) {
         )}
       </Card>
 
+      {/* Action Buttons */}
+      <View style={[styles.actionButtons, { paddingHorizontal: theme.spacing.base, marginTop: theme.spacing.base, marginBottom: theme.spacing.base }]}>
+        <Button
+          onPress={handleAnalyze}
+          variant="primary"
+          style={{ flex: 1, marginRight: theme.spacing.sm }}
+        >
+          📊 Analysera
+        </Button>
+        <Button
+          onPress={handleAddPosition}
+          variant="secondary"
+          style={{ flex: 1, marginLeft: theme.spacing.sm }}
+        >
+          ➕ Lägg till Position
+        </Button>
+      </View>
+
       {/* Stock Info */}
       {stockInfo && (
         <Card style={{ margin: theme.spacing.base }}>
@@ -789,22 +883,6 @@ export default function StockDetailScreen({ route, navigation }) {
           )}
         </Card>
       )}
-
-      {/* Action Buttons */}
-      <View style={[styles.actionButtons, { paddingHorizontal: theme.spacing.base, marginBottom: theme.spacing.xl }]}>
-        <Button
-          title="Buy"
-          onPress={handleBuy}
-          variant="primary"
-          style={{ flex: 1, marginRight: theme.spacing.sm }}
-        />
-        <Button
-          title="Sell"
-          onPress={handleSell}
-          variant="secondary"
-          style={{ flex: 1, marginLeft: theme.spacing.sm }}
-        />
-      </View>
     </ScrollView>
   );
 }

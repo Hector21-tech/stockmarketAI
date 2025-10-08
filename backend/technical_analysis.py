@@ -141,7 +141,9 @@ class TechnicalAnalyzer:
     def identify_support_resistance(data: pd.DataFrame,
                                     window: int = 20) -> Dict[str, float]:
         """
-        Identifierar stod och motstand
+        Identifierar stod och motstand med swing levels
+
+        MarketMate-stil: Använder senaste swing highs/lows istället för absoluta extremer
 
         Returns:
             Dict med 'support' och 'resistance'
@@ -149,10 +151,36 @@ class TechnicalAnalyzer:
         if len(data) < window:
             return {'support': None, 'resistance': None}
 
-        recent_data = data.tail(window)
+        recent_data = data.tail(window).copy()
+        current_price = data['Close'].iloc[-1]
 
-        support = recent_data['Low'].min()
-        resistance = recent_data['High'].max()
+        # Swing Low: Lokalt minimum (pris lägre än grannarna)
+        # Ta senaste 10 dagar och hitta närmaste swing low
+        swing_lows = []
+        for i in range(2, min(10, len(recent_data) - 2)):
+            idx = len(recent_data) - i - 1
+            if (recent_data['Low'].iloc[idx] < recent_data['Low'].iloc[idx-1] and
+                recent_data['Low'].iloc[idx] < recent_data['Low'].iloc[idx+1]):
+                swing_lows.append(float(recent_data['Low'].iloc[idx]))
+
+        # Swing High: Lokalt maximum
+        swing_highs = []
+        for i in range(2, min(10, len(recent_data) - 2)):
+            idx = len(recent_data) - i - 1
+            if (recent_data['High'].iloc[idx] > recent_data['High'].iloc[idx-1] and
+                recent_data['High'].iloc[idx] > recent_data['High'].iloc[idx+1]):
+                swing_highs.append(float(recent_data['High'].iloc[idx]))
+
+        # Använd närmaste swing levels, fallback till absoluta min/max
+        if swing_lows:
+            support = max(swing_lows)  # Närmaste swing low
+        else:
+            support = float(recent_data['Low'].min())
+
+        if swing_highs:
+            resistance = min([h for h in swing_highs if h > current_price], default=max(swing_highs))
+        else:
+            resistance = float(recent_data['High'].max())
 
         return {
             'support': float(support),
@@ -217,7 +245,9 @@ class TechnicalAnalyzer:
             'sma_50': float(sma_50.iloc[-1]),
             'support': levels['support'],
             'resistance': levels['resistance'],
-            'volume': float(data['Volume'].iloc[-1])
+            'volume': float(data['Volume'].iloc[-1]),
+            'volume_avg_20': float(data['Volume'].tail(20).mean()),  # 20-dagars genomsnitt
+            'volume_ratio': float(data['Volume'].iloc[-1] / data['Volume'].tail(20).mean())  # Current / Average
         }
 
     @staticmethod
