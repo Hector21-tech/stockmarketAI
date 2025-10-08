@@ -396,52 +396,62 @@ class MarketmateAI:
         adjusted_t2_pct = base_t2_pct * target_multiplier
         adjusted_t3_pct = base_t3_pct * target_multiplier
 
-        # Beräkna targets från entry
-        target_1 = entry * (1 + adjusted_t1_pct)
+        # Beräkna targets från entry (only if entry exists)
+        if entry is not None:
+            target_1 = entry * (1 + adjusted_t1_pct)
 
-        # Target 2: Använd adjusted percentage, men säkerställ minst +3% över T1
-        target_2_from_pct = entry * (1 + adjusted_t2_pct)
-        target_2 = max(target_2_from_pct, target_1 * 1.03)
+            # Target 2: Använd adjusted percentage, men säkerställ minst +3% över T1
+            target_2_from_pct = entry * (1 + adjusted_t2_pct)
+            target_2 = max(target_2_from_pct, target_1 * 1.03)
 
-        # Target 3: Använd adjusted percentage, men säkerställ minst +5% över T2
-        target_3_from_pct = entry * (1 + adjusted_t3_pct)
-        target_3 = max(target_3_from_pct, target_2 * 1.05)
+            # Target 3: Använd adjusted percentage, men säkerställ minst +5% över T2
+            target_3_from_pct = entry * (1 + adjusted_t3_pct)
+            target_3 = max(target_3_from_pct, target_2 * 1.05)
 
-        # Räkna gain_percent korrekt från entry (inte price)
-        gain_1 = ((target_1 - entry) / entry) * 100
-        gain_2 = ((target_2 - entry) / entry) * 100
-        gain_3 = ((target_3 - entry) / entry) * 100
+            # Räkna gain_percent korrekt från entry (inte price)
+            gain_1 = ((target_1 - entry) / entry) * 100
+            gain_2 = ((target_2 - entry) / entry) * 100
+            gain_3 = ((target_3 - entry) / entry) * 100
 
-        # Räkna R/R korrekt
-        risk = entry - stop_loss
-        reward_t1 = target_1 - entry
-        reward_t2 = target_2 - entry
-        rr_t1 = reward_t1 / risk if risk > 0 else 0
-        rr_t2 = reward_t2 / risk if risk > 0 else 0
+            # Räkna R/R korrekt
+            risk = entry - stop_loss
+            reward_t1 = target_1 - entry
+            reward_t2 = target_2 - entry
+            rr_t1 = reward_t1 / risk if risk > 0 else 0
+            rr_t2 = reward_t2 / risk if risk > 0 else 0
 
-        return {
-            'entry': round(entry, 2) if entry else None,
-            'stop_loss': round(stop_loss, 2),
-            'targets': {
-                'target_1': {
-                    'price': round(target_1, 2),
-                    'gain_percent': round(gain_1, 1),
-                    'action': 'Sälj 1/3, flytta stop till break-even'
+            return {
+                'entry': round(entry, 2),
+                'stop_loss': round(stop_loss, 2),
+                'targets': {
+                    'target_1': {
+                        'price': round(target_1, 2),
+                        'gain_percent': round(gain_1, 1),
+                        'action': 'Sälj 1/3, flytta stop till break-even'
+                    },
+                    'target_2': {
+                        'price': round(target_2, 2),
+                        'gain_percent': round(gain_2, 1),
+                        'action': 'Sälj 1/3, flytta stop under swing-low'
+                    },
+                    'target_3': {
+                        'price': round(target_3, 2),
+                        'gain_percent': round(gain_3, 1),
+                        'action': 'Håll så länge trend kvarstår'
+                    }
                 },
-                'target_2': {
-                    'price': round(target_2, 2),
-                    'gain_percent': round(gain_2, 1),
-                    'action': 'Sälj 1/3, flytta stop under swing-low'
-                },
-                'target_3': {
-                    'price': round(target_3, 2),
-                    'gain_percent': round(gain_3, 1),
-                    'action': 'Håll så länge trend kvarstår'
-                }
-            },
-            'risk_percent': round(risk_percent, 2),
-            'risk_reward': round(rr_t2, 2)  # Använd T2 för mer realistisk R/R
-        }
+                'risk_percent': round(risk_percent, 2),
+                'risk_reward': round(rr_t2, 2)  # Använd T2 för mer realistisk R/R
+            }
+        else:
+            # No entry = no targets (HOLD or SELL signal)
+            return {
+                'entry': None,
+                'stop_loss': round(stop_loss, 2),
+                'targets': None,
+                'risk_percent': round(risk_percent, 2),
+                'risk_reward': None
+            }
 
     def _generate_summary(self, action: str, reasons: List[str]) -> str:
         """Genererar kort sammanfattning enligt Marketmate-stil"""
