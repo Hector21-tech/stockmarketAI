@@ -7,6 +7,7 @@ from stock_data import StockDataFetcher
 from technical_analysis import TechnicalAnalyzer
 from macro_data import MacroDataFetcher
 from signal_modes import get_mode_config
+from ai_service import ai_service
 from typing import Dict, List, Optional
 import json
 
@@ -253,7 +254,43 @@ class MarketmateAI:
             macro_classification = macro_score_data.get('classification', 'Unknown')
             signals.append(f'📊 Makro Score: {macro_score:.1f}/10 ({macro_classification})')
 
-        # MARKETMATE FORMULA: TotalScore = (Technical * 0.7) + (Macro * 0.3)
+        # === AI SCORE (för AI-Hybrid mode) ===
+        ai_score = 0
+        ai_details = None
+        ai_weight = mode_config.get('ai_weight', 0.0)
+
+        if ai_weight > 0 and mode_config.get('use_ai', False):
+            # Hämta AI score med news sentiment och pattern detection
+            # TODO: Hämta faktisk news data från API
+            news_headlines = []  # Placeholder - implementera senare med news API
+
+            technical_data = {
+                'price': analysis.get('price'),
+                'price_5d_ago': analysis.get('price') * 0.97,  # Placeholder
+                'volume': analysis.get('volume'),
+                'avg_volume': analysis.get('volume', 0) / (analysis.get('volume_ratio', 1.0) or 1.0),
+                'price_history': []  # Placeholder - skulle komma från historical data
+            }
+
+            ai_result = ai_service.calculate_ai_score(
+                ticker='TEMP',  # Ticker skulle passas från analyze_stock
+                technical_data=technical_data,
+                news_headlines=news_headlines
+            )
+
+            # Normalize AI score from 0-10 to match technical scale (-10 to +10)
+            # AI 5 = neutral (0), AI 10 = very bullish (+10), AI 0 = very bearish (-10)
+            ai_score = (ai_result['ai_score'] - 5) * 2  # Range: -10 to +10
+            ai_details = ai_result
+
+            # Lägg till AI components i signals
+            if ai_result['sentiment_component'] > 0:
+                signals.append(f"🤖 AI Sentiment: {ai_result['sentiment_component']:.1f}/4")
+            if ai_result['pattern_component'] > 0:
+                signals.append(f"📊 AI Patterns: {ai_result['pattern_component']:.1f}/3")
+            signals.append(f"⚡ AI Momentum: {ai_result['momentum_component']:.1f}/3")
+
+        # MARKETMATE FORMULA: TotalScore = (Technical * weight) + (AI * weight) + (Macro * weight)
         # Normalize macro_score from 0-10 to match technical scale (-10 to +10)
         # Macro 5 = neutral (0), Macro 10 = bullish (+10), Macro 0 = bearish (-10)
         normalized_macro = (macro_score - 5) * 2  # Range: -10 to +10
@@ -261,7 +298,13 @@ class MarketmateAI:
         # Combined score (använd mode config weights)
         tech_weight = mode_config.get('tech_weight', 0.7)
         macro_weight = mode_config.get('macro_weight', 0.3)
-        combined_score = (net_technical_score * tech_weight) + (normalized_macro * macro_weight)
+
+        if ai_weight > 0:
+            # AI-Hybrid mode: (Tech * 0.6) + (AI * 0.3) + (Macro * 0.1)
+            combined_score = (net_technical_score * tech_weight) + (ai_score * ai_weight) + (normalized_macro * macro_weight)
+        else:
+            # Conservative/Aggressive mode: (Tech * weight) + (Macro * weight)
+            combined_score = (net_technical_score * tech_weight) + (normalized_macro * macro_weight)
 
         # MACRO BIAS LOGIC
         # Macro < 4: Tone down buy signals (reduce score)
@@ -287,7 +330,7 @@ class MarketmateAI:
             action = 'HOLD'
             strength = 'NEUTRAL'
 
-        return {
+        result = {
             'action': action,
             'strength': strength,
             'score': round(combined_score, 1),
@@ -296,6 +339,13 @@ class MarketmateAI:
             'reasons': signals,
             'summary': self._generate_summary(action, signals)
         }
+
+        # Lägg till AI score om det användes
+        if ai_weight > 0 and ai_details:
+            result['ai_score'] = ai_details['ai_score']
+            result['ai_details'] = ai_details
+
+        return result
 
     def _calculate_trade_levels(self, analysis: Dict, signal: Dict, mode_config: Dict = None) -> Dict:
         """

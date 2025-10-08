@@ -62,7 +62,12 @@ export default function SettingsScreen() {
       const response = await api.setSignalMode(mode);
       if (response.data.success) {
         setSignalMode(mode);
-        Alert.alert('✓ Sparad!', `Signal mode ändrad till ${mode === 'conservative' ? 'Conservative 🛡️' : 'Aggressive ⚡'}`);
+        const modeNames = {
+          'conservative': 'Conservative 🛡️',
+          'aggressive': 'Aggressive ⚡',
+          'ai-hybrid': 'AI-Hybrid 🤖'
+        };
+        Alert.alert('✓ Sparad!', `Signal mode ändrad till ${modeNames[mode] || mode}`);
       }
     } catch (error) {
       console.error('Error changing signal mode:', error);
@@ -261,6 +266,44 @@ export default function SettingsScreen() {
           <View style={{ flexDirection: 'row', marginTop: 8 }}>
             <Text style={[styles.modeStats, { color: theme.colors.text.tertiary }]}>
               Min Score: 2.5 • Stop: 1.2% • Tech/Macro: 85/15 • Targets: 1.3x
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* AI-Hybrid Mode */}
+        <TouchableOpacity
+          onPress={() => changeSignalMode('ai-hybrid')}
+          disabled={changingMode}
+          style={[
+            styles.modeOption,
+            {
+              backgroundColor: signalMode === 'ai-hybrid'
+                ? '#4CAF50' + '20'
+                : theme.colors.background.secondary,
+              borderColor: signalMode === 'ai-hybrid'
+                ? '#4CAF50'
+                : theme.colors.border,
+              marginTop: theme.spacing.sm,
+            }
+          ]}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+            <Text style={{ fontSize: 20, marginRight: 8 }}>🤖</Text>
+            <Text style={[styles.modeName, { color: theme.colors.text.primary }]}>
+              AI-Hybrid
+            </Text>
+            {signalMode === 'ai-hybrid' && (
+              <View style={{ marginLeft: 8, backgroundColor: '#4CAF50', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
+                <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '700' }}>AKTIV</Text>
+              </View>
+            )}
+          </View>
+          <Text style={[styles.modeDescription, { color: theme.colors.text.secondary }]}>
+            AI-driven med sentiment + patterns. Balanserad mellan tech och AI insights.
+          </Text>
+          <View style={{ flexDirection: 'row', marginTop: 8 }}>
+            <Text style={[styles.modeStats, { color: theme.colors.text.tertiary }]}>
+              Min Score: 3.0 • Stop: 1.8% • Tech/AI/Macro: 60/30/10 • Targets: 1.15x
             </Text>
           </View>
         </TouchableOpacity>

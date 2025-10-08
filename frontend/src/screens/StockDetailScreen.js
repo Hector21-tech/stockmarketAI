@@ -250,19 +250,44 @@ export default function StockDetailScreen({ route, navigation }) {
       // Build comprehensive analysis message
       const techScore = signal.technical_score ?? 0;
       const macroScore = signal.macro_score ?? 5;
+      const aiScore = signal.ai_score ?? 0;
       const totalScore = signal.score ?? 0;
 
       // Dynamisk formula baserad på mode
-      const techWeight = signalMode === 'aggressive' ? '0.85' : '0.7';
-      const macroWeight = signalMode === 'aggressive' ? '0.15' : '0.3';
-      const modeIcon = signalMode === 'aggressive' ? '⚡' : '🛡️';
-      const modeName = signalMode === 'aggressive' ? 'AGGRESSIVE' : 'CONSERVATIVE';
+      let techWeight, macroWeight, aiWeight, modeIcon, modeName, formulaStr;
+
+      if (signalMode === 'ai-hybrid') {
+        techWeight = '0.6';
+        aiWeight = '0.3';
+        macroWeight = '0.1';
+        modeIcon = '🤖';
+        modeName = 'AI-HYBRID';
+        formulaStr = `(Tech*${techWeight}) + (AI*${aiWeight}) + (Macro*${macroWeight})`;
+      } else if (signalMode === 'aggressive') {
+        techWeight = '0.85';
+        macroWeight = '0.15';
+        modeIcon = '⚡';
+        modeName = 'AGGRESSIVE';
+        formulaStr = `(Tech*${techWeight}) + (Macro*${macroWeight})`;
+      } else {
+        techWeight = '0.7';
+        macroWeight = '0.3';
+        modeIcon = '🛡️';
+        modeName = 'CONSERVATIVE';
+        formulaStr = `(Tech*${techWeight}) + (Macro*${macroWeight})`;
+      }
+
+      const scoreBreakdown = signalMode === 'ai-hybrid'
+        ? `   Technical: ${techScore}/10
+   AI Score: ${aiScore}/10
+   Macro: ${macroScore}/10`
+        : `   Technical: ${techScore}/10
+   Macro: ${macroScore}/10`;
 
       const message = `
 🎯 TOTAL SCORE: ${totalScore}/10 — ${signal.strength}
-   Technical: ${techScore}/10
-   Macro: ${macroScore}/10
-   Formula: (Tech*${techWeight}) + (Macro*${macroWeight})
+${scoreBreakdown}
+   Formula: ${formulaStr}
    Mode: ${modeIcon} ${modeName}
 
 📊 SIGNAL: ${signal.action}
