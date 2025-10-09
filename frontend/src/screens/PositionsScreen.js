@@ -99,7 +99,7 @@ export default function PositionsScreen({ navigation }) {
 
     const diffHours = Math.floor(diffMins / 60);
     if (diffHours === 1) return '1 timme sedan';
-    if (diffHours < 24) return `${diffHours} timmar sedan';
+    if (diffHours < 24) return `${diffHours} timmar sedan`;
 
     const diffDays = Math.floor(diffHours / 24);
     if (diffDays === 1) return '1 dag sedan';
