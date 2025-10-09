@@ -82,9 +82,30 @@ export default function SignalsScreen() {
     }
   };
 
+  const getConfidenceColor = (confidence) => {
+    if (confidence >= 80) return theme.colors.bullish;  // Strong green
+    if (confidence >= 65) return theme.colors.bullish;  // Green
+    if (confidence >= 50) return '#FFA500';  // Orange
+    if (confidence >= 35) return '#FF6347';  // Red-orange
+    return theme.colors.bearish;  // Red
+  };
+
+  const getConfidenceIcon = (confidence) => {
+    if (confidence >= 80) return '🟢';
+    if (confidence >= 65) return '🟢';
+    if (confidence >= 50) return '🟡';
+    if (confidence >= 35) return '🟠';
+    return '🔴';
+  };
+
   const renderSignalItem = ({ item }) => {
     const { ticker, name, signal, trade_setup, analysis } = item;
     const signalColor = getSignalColor(signal.strength);
+    const confidence = signal.confidence || 0;
+    const confidenceColor = getConfidenceColor(confidence);
+    const confidenceIcon = getConfidenceIcon(confidence);
+    const riskFactors = signal.risk_factors || [];
+    const recommendedSize = signal.recommended_size || 'full';
 
     return (
       <Card variant="elevated" style={{ marginBottom: theme.spacing.md }}>
@@ -114,8 +135,17 @@ export default function SignalsScreen() {
           />
         </View>
 
-        {/* Score Badge */}
+        {/* Confidence & Score Badge */}
         <View style={{ marginTop: theme.spacing.md, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }}>
+          <View style={[styles.scoreBadge, { backgroundColor: theme.colors.alpha(confidenceColor, 0.2), flex: 1 }]}>
+            <Text style={[styles.scoreLabel, { color: theme.colors.text.secondary }]}>
+              {confidenceIcon} CONFIDENCE
+            </Text>
+            <Text style={[styles.scoreValue, { color: confidenceColor }]}>
+              {confidence.toFixed(0)}%
+            </Text>
+          </View>
+
           <View style={[styles.scoreBadge, { backgroundColor: theme.colors.alpha(signalColor, 0.2) }]}>
             <Text style={[styles.scoreLabel, { color: theme.colors.text.secondary }]}>
               SCORE
@@ -133,16 +163,28 @@ export default function SignalsScreen() {
               {analysis.rsi.toFixed(1)}
             </Text>
           </View>
+        </View>
 
-          <View style={[styles.scoreBadge, { backgroundColor: theme.colors.alpha(signalColor, 0.2) }]}>
-            <Text style={[styles.scoreLabel, { color: theme.colors.text.secondary }]}>
-              STRENGTH
+        {/* Risk Factors Warning */}
+        {riskFactors.length > 0 && (
+          <View style={[styles.riskWarning, {
+            backgroundColor: theme.colors.alpha(theme.colors.bearish, 0.1),
+            marginTop: theme.spacing.sm,
+            borderLeftColor: theme.colors.bearish,
+          }]}>
+            <Text style={[styles.riskTitle, { color: theme.colors.bearish }]}>
+              ⚠️ Risk Factors
             </Text>
-            <Text style={[styles.scoreValue, { color: signalColor, fontSize: 10 }]}>
-              {signal.strength}
+            {riskFactors.map((risk, index) => (
+              <Text key={index} style={[styles.riskText, { color: theme.colors.text.secondary }]}>
+                • {risk}
+              </Text>
+            ))}
+            <Text style={[styles.riskSize, { color: theme.colors.text.tertiary, marginTop: 4 }]}>
+              → Recommended: {recommendedSize === 'full' ? 'Full' : recommendedSize === 'half' ? 'Half (50%)' : recommendedSize === 'quarter' ? 'Quarter (25%)' : 'No'} position
             </Text>
           </View>
-        </View>
+        )}
 
         {/* Summary */}
         <Text style={[styles.summary, { color: theme.colors.text.primary, marginTop: theme.spacing.md }]}>
@@ -484,5 +526,25 @@ const styles = StyleSheet.create({
   addButtonText: {
     fontSize: 15,
     fontWeight: '700',
+  },
+  riskWarning: {
+    padding: 12,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+  },
+  riskTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  riskText: {
+    fontSize: 12,
+    lineHeight: 18,
+    marginVertical: 2,
+  },
+  riskSize: {
+    fontSize: 11,
+    fontStyle: 'italic',
   },
 });

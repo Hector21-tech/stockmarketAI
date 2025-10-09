@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { Card, Button } from '../components';
-import { apiClient } from '../api/client';
+import { api } from '../api/client';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function BacktestScreen() {
@@ -41,14 +41,14 @@ export default function BacktestScreen() {
     setResults(null);
 
     try {
-      const response = await apiClient.post('/backtest', {
+      const response = await api.runBacktest(
         ticker,
         market,
-        start_date: startDate,
-        end_date: endDate,
-        initial_capital: parseInt(initialCapital),
+        startDate,
+        endDate,
+        parseInt(initialCapital),
         mode
-      });
+      );
 
       if (response.data.error) {
         Alert.alert('Backtest Error', response.data.error);

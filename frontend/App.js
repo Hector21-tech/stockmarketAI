@@ -157,6 +157,8 @@ function AppContent() {
                 iconName = focused ? 'notifications' : 'notifications-outline';
               } else if (route.name === 'Positions') {
                 iconName = focused ? 'briefcase' : 'briefcase-outline';
+              } else if (route.name === 'Backtest') {
+                iconName = focused ? 'time' : 'time-outline';
               } else if (route.name === 'Settings') {
                 iconName = focused ? 'settings' : 'settings-outline';
               }

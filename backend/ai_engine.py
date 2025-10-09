@@ -9,6 +9,8 @@ from macro_data import MacroDataFetcher
 from signal_modes import get_mode_config
 from ai_service import ai_service
 from seasonality_service import SeasonalityService
+from confidence_calculator import calculate_confidence
+from news_fetcher import news_fetcher
 from typing import Dict, List, Optional
 import json
 
@@ -314,8 +316,15 @@ class MarketmateAI:
 
         if ai_weight > 0 and mode_config.get('use_ai', False):
             # Hämta AI score med news sentiment och pattern detection
-            # TODO: Hämta faktisk news data från API
-            news_headlines = []  # Placeholder - implementera senare med news API
+            # Fetch real news headlines from yfinance
+            news_headlines = []
+            try:
+                if ticker and market:
+                    news_headlines = news_fetcher.get_news_headlines(ticker, market, limit=10)
+                    print(f"[AI-Hybrid] Fetched {len(news_headlines)} news headlines for {ticker}")
+            except Exception as e:
+                print(f"[AI-Hybrid] Error fetching news: {e}")
+                news_headlines = []
 
             technical_data = {
                 'price': analysis.get('price'),
@@ -326,7 +335,7 @@ class MarketmateAI:
             }
 
             ai_result = ai_service.calculate_ai_score(
-                ticker='TEMP',  # Ticker skulle passas från analyze_stock
+                ticker=ticker or 'TEMP',
                 technical_data=technical_data,
                 news_headlines=news_headlines
             )
@@ -384,6 +393,19 @@ class MarketmateAI:
             action = 'HOLD'
             strength = 'NEUTRAL'
 
+        # CALCULATE CONFIDENCE (MarketMate Risk-Adjusted)
+        vix_value = vix_data.get('value') if vix_data else None
+        spx_trend = macro_data.get('spx_trend') if macro_data else None
+
+        confidence_result = calculate_confidence(
+            base_score=combined_score,
+            vix_value=vix_value,
+            spx_trend=spx_trend,
+            macro_regime=macro_regime,
+            macro_score=macro_score,
+            sentiment_data=sentiment_data
+        )
+
         result = {
             'action': action,
             'strength': strength,
@@ -392,7 +414,13 @@ class MarketmateAI:
             'macro_score': macro_score,
             'adjusted_macro_score': round(adjusted_macro_score, 2),
             'reasons': signals,
-            'summary': self._generate_summary(action, signals)
+            'summary': self._generate_summary(action, signals),
+            # CONFIDENCE DATA
+            'confidence': confidence_result['confidence'],
+            'confidence_level': confidence_result['level'],
+            'confidence_emoji': confidence_result['emoji'],
+            'risk_factors': confidence_result['risk_factors'],
+            'recommended_size': confidence_result['recommended_size'],
         }
 
         # Lägg till AI score om det användes

@@ -263,6 +263,12 @@ export default function StockDetailScreen({ route, navigation }) {
       const totalScore = signal.score ?? 0;
       const seasonality = signal.seasonality ?? null;
 
+      // Confidence data
+      const confidence = signal.confidence ?? 0;
+      const confidenceLevel = signal.confidence_level ?? 'UNKNOWN';
+      const riskFactors = signal.risk_factors ?? [];
+      const recommendedSize = signal.recommended_size ?? 'full';
+
       // Dynamisk formula baserad på mode
       let techWeight, macroWeight, aiWeight, modeName, formulaStr;
 
@@ -296,11 +302,32 @@ export default function StockDetailScreen({ route, navigation }) {
         : `   Technical: ${techScore}/10
    Macro: ${macroScore}/10 → ${adjustedMacroScore.toFixed(1)}/10${seasonalityLine ? '\n' + seasonalityLine : ''}`;
 
+      // Confidence icon helper
+      const getConfidenceIcon = (conf) => {
+        if (conf >= 80) return '🟢';
+        if (conf >= 65) return '🟢';
+        if (conf >= 50) return '🟡';
+        if (conf >= 35) return '🟠';
+        return '🔴';
+      };
+
+      const confidenceIcon = getConfidenceIcon(confidence);
+      const sizeLabel = recommendedSize === 'full' ? 'Full (100%)' :
+                        recommendedSize === 'half' ? 'Half (50%)' :
+                        recommendedSize === 'quarter' ? 'Quarter (25%)' : 'No position';
+
+      const riskSection = riskFactors.length > 0
+        ? `\n⚠️ RISK FACTORS:\n${riskFactors.map(r => `   • ${r}`).join('\n')}\n   → Recommended Size: ${sizeLabel}`
+        : '';
+
       const message = `
 ═══ TOTAL SCORE: ${totalScore}/10 — ${signal.strength} ═══
 ${scoreBreakdown}
    Formula: ${formulaStr}
    Mode: ${modeName}
+
+─── CONFIDENCE: ${confidenceIcon} ${confidence.toFixed(1)}% ───
+Level: ${confidenceLevel}${riskSection}
 
 ─── SIGNAL: ${signal.action} ───
 ${signal.summary}

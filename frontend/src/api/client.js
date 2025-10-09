@@ -88,6 +88,17 @@ export const api = {
   // Macro Data
   getMacroData: () => apiClient.get('/macro'),
 
+  // Backtester
+  runBacktest: (ticker, market, startDate, endDate, initialCapital, mode) =>
+    apiClient.post('/backtest', {
+      ticker,
+      market,
+      start_date: startDate,
+      end_date: endDate,
+      initial_capital: initialCapital,
+      mode
+    }),
+
   // Notifications
   registerPushToken: (pushToken, userId = 'default') =>
     apiClient.post('/notifications/register', { push_token: pushToken, user_id: userId }),

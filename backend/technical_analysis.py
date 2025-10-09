@@ -113,6 +113,50 @@ class TechnicalAnalyzer:
         return upper_band, middle_band, lower_band
 
     @staticmethod
+    def calculate_adx(data: pd.DataFrame, period: int = 14) -> Tuple[pd.Series, pd.Series, pd.Series]:
+        """
+        Beraknar Average Directional Index (ADX) for trend strength
+
+        ADX > 25: Strong trend (tradeable)
+        ADX 20-25: Moderate trend
+        ADX < 20: Weak/choppy trend (avoid trading)
+
+        Args:
+            data: DataFrame med 'High', 'Low', 'Close' kolumner
+            period: ADX period (default 14)
+
+        Returns:
+            Tuple (adx, plus_di, minus_di)
+        """
+        # Calculate True Range (TR)
+        high_low = data['High'] - data['Low']
+        high_close = np.abs(data['High'] - data['Close'].shift())
+        low_close = np.abs(data['Low'] - data['Close'].shift())
+
+        tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+        atr = tr.rolling(window=period).mean()
+
+        # Calculate Directional Movement
+        up_move = data['High'] - data['High'].shift()
+        down_move = data['Low'].shift() - data['Low']
+
+        plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0)
+        minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0)
+
+        plus_dm_smooth = pd.Series(plus_dm, index=data.index).rolling(window=period).mean()
+        minus_dm_smooth = pd.Series(minus_dm, index=data.index).rolling(window=period).mean()
+
+        # Calculate Directional Indicators
+        plus_di = 100 * (plus_dm_smooth / atr)
+        minus_di = 100 * (minus_dm_smooth / atr)
+
+        # Calculate ADX
+        dx = 100 * np.abs(plus_di - minus_di) / (plus_di + minus_di)
+        adx = dx.rolling(window=period).mean()
+
+        return adx, plus_di, minus_di
+
+    @staticmethod
     def detect_divergence(price: pd.Series, indicator: pd.Series,
                          window: int = 20) -> str:
         """
@@ -203,6 +247,7 @@ class TechnicalAnalyzer:
         k_percent, d_percent = self.calculate_stochastic(data)
         ema_20 = self.calculate_ema(data, 20)
         sma_50 = self.calculate_sma(data, 50)
+        adx, plus_di, minus_di = self.calculate_adx(data)
 
         # Senaste varden
         current_price = float(data['Close'].iloc[-1])
@@ -211,6 +256,9 @@ class TechnicalAnalyzer:
         current_signal = float(signal_line.iloc[-1]) if not pd.isna(signal_line.iloc[-1]) else None
         current_k = float(k_percent.iloc[-1]) if not pd.isna(k_percent.iloc[-1]) else None
         current_d = float(d_percent.iloc[-1]) if not pd.isna(d_percent.iloc[-1]) else None
+        current_adx = float(adx.iloc[-1]) if not pd.isna(adx.iloc[-1]) else None
+        current_plus_di = float(plus_di.iloc[-1]) if not pd.isna(plus_di.iloc[-1]) else None
+        current_minus_di = float(minus_di.iloc[-1]) if not pd.isna(minus_di.iloc[-1]) else None
 
         # Stod/Motstand
         levels = self.identify_support_resistance(data)
@@ -239,6 +287,12 @@ class TechnicalAnalyzer:
                 'k': current_k,
                 'd': current_d,
                 'status': self._get_stoch_status(current_k, current_d)
+            },
+            'adx': {
+                'adx': current_adx,
+                'plus_di': current_plus_di,
+                'minus_di': current_minus_di,
+                'trend_strength': self._get_adx_status(current_adx)
             },
             'trend': trend,
             'ema_20': float(ema_20.iloc[-1]),
@@ -273,6 +327,18 @@ class TechnicalAnalyzer:
             return 'oversold'
         else:
             return 'neutral'
+
+    @staticmethod
+    def _get_adx_status(adx: Optional[float]) -> str:
+        """Tolkar ADX-niva (trend strength)"""
+        if adx is None:
+            return 'unknown'
+        if adx > 25:
+            return 'strong'  # Strong trend - tradeable
+        elif adx > 20:
+            return 'moderate'  # Moderate trend
+        else:
+            return 'weak'  # Weak/choppy - avoid trading
 
 
 # Test-funktion

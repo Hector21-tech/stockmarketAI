@@ -8,12 +8,18 @@ import pandas as pd
 import numpy as np
 from typing import Dict, Optional, List
 from datetime import datetime, timedelta
+import time
 
 class MacroDataFetcher:
     """Hämtar makroekonomisk data"""
 
-    def __init__(self):
-        """Initialize with ticker symbols for macro indicators"""
+    def __init__(self, cache_ttl=300):
+        """
+        Initialize with ticker symbols for macro indicators
+
+        Args:
+            cache_ttl: Cache time-to-live in seconds (default: 5 minutes)
+        """
         self.tickers = {
             'dxy': 'DX-Y.NYB',  # Dollar Index
             'vix': '^VIX',       # VIX Fear Index
@@ -24,98 +30,146 @@ class MacroDataFetcher:
             'oil': 'CL=F',       # Crude Oil Futures
         }
 
+        # Cache for macro data (avoid rate limiting)
+        self.cache_ttl = cache_ttl
+        self._cache = {}
+        self._cache_timestamps = {}
+
+    def _get_cached(self, key: str, fetch_func):
+        """
+        Generic cache getter with TTL
+
+        Args:
+            key: Cache key
+            fetch_func: Function to call if cache miss
+
+        Returns:
+            Cached or fresh data
+        """
+        now = time.time()
+
+        # Check if we have valid cached data
+        if key in self._cache and key in self._cache_timestamps:
+            age = now - self._cache_timestamps[key]
+            if age < self.cache_ttl:
+                # Cache hit - return cached data
+                return self._cache[key]
+
+        # Cache miss or expired - fetch new data
+        try:
+            data = fetch_func()
+            if data is not None:
+                self._cache[key] = data
+                self._cache_timestamps[key] = now
+            return data
+        except Exception as e:
+            # Return stale cache if available (fallback)
+            if key in self._cache:
+                print(f"Warning: Using stale cache for {key} due to error: {e}")
+                return self._cache[key]
+            raise
+
     def get_dxy(self) -> Optional[Dict]:
         """
-        Hämtar Dollar Index (DXY) data
+        Hämtar Dollar Index (DXY) data (cached for 5 min)
 
         Returns:
             Dict med current value, change, changePercent
         """
-        try:
-            ticker = yf.Ticker(self.tickers['dxy'])
-            hist = ticker.history(period='5d')
+        def fetch_dxy():
+            try:
+                ticker = yf.Ticker(self.tickers['dxy'])
+                hist = ticker.history(period='5d')
 
-            if hist.empty:
+                if hist.empty:
+                    return None
+
+                current_value = float(hist['Close'].iloc[-1])
+                previous_value = float(hist['Close'].iloc[-2]) if len(hist) > 1 else current_value
+                change = current_value - previous_value
+                change_percent = (change / previous_value * 100) if previous_value != 0 else 0
+
+                return {
+                    'value': current_value,
+                    'change': change,
+                    'changePercent': change_percent,
+                    'unit': '',
+                    'label': 'Dollar Index (DXY)',
+                    'timestamp': datetime.now().isoformat(),
+                }
+            except Exception as e:
+                print(f"Error fetching DXY: {e}")
                 return None
 
-            current_value = float(hist['Close'].iloc[-1])
-            previous_value = float(hist['Close'].iloc[-2]) if len(hist) > 1 else current_value
-            change = current_value - previous_value
-            change_percent = (change / previous_value * 100) if previous_value != 0 else 0
-
-            return {
-                'value': current_value,
-                'change': change,
-                'changePercent': change_percent,
-                'unit': '',
-                'label': 'Dollar Index (DXY)',
-                'timestamp': datetime.now().isoformat(),
-            }
-        except Exception as e:
-            print(f"Error fetching DXY: {e}")
-            return None
+        return self._get_cached('dxy', fetch_dxy)
 
     def get_vix(self) -> Optional[Dict]:
         """
-        Hämtar VIX (Fear Index) data
+        Hämtar VIX (Fear Index) data (cached for 5 min)
 
         Returns:
             Dict med current value, change, changePercent
         """
-        try:
-            ticker = yf.Ticker(self.tickers['vix'])
-            hist = ticker.history(period='5d')
+        def fetch_vix():
+            try:
+                ticker = yf.Ticker(self.tickers['vix'])
+                hist = ticker.history(period='5d')
 
-            if hist.empty:
+                if hist.empty:
+                    return None
+
+                current_value = float(hist['Close'].iloc[-1])
+                previous_value = float(hist['Close'].iloc[-2]) if len(hist) > 1 else current_value
+                change = current_value - previous_value
+                change_percent = (change / previous_value * 100) if previous_value != 0 else 0
+
+                return {
+                    'value': current_value,
+                    'change': change,
+                    'changePercent': change_percent,
+                    'unit': '',
+                    'label': 'VIX (Fear Index)',
+                    'timestamp': datetime.now().isoformat(),
+                }
+            except Exception as e:
+                print(f"Error fetching VIX: {e}")
                 return None
 
-            current_value = float(hist['Close'].iloc[-1])
-            previous_value = float(hist['Close'].iloc[-2]) if len(hist) > 1 else current_value
-            change = current_value - previous_value
-            change_percent = (change / previous_value * 100) if previous_value != 0 else 0
-
-            return {
-                'value': current_value,
-                'change': change,
-                'changePercent': change_percent,
-                'unit': '',
-                'label': 'VIX (Fear Index)',
-                'timestamp': datetime.now().isoformat(),
-            }
-        except Exception as e:
-            print(f"Error fetching VIX: {e}")
-            return None
+        return self._get_cached('vix', fetch_vix)
 
     def get_treasury_10y(self) -> Optional[Dict]:
         """
-        Hämtar 10-Year Treasury Yield data
+        Hämtar 10-Year Treasury Yield data (cached for 5 min)
 
         Returns:
             Dict med current value, change, changePercent
         """
-        try:
-            ticker = yf.Ticker(self.tickers['treasury_10y'])
-            hist = ticker.history(period='5d')
+        def fetch_treasury():
+            try:
+                ticker = yf.Ticker(self.tickers['treasury_10y'])
+                hist = ticker.history(period='5d')
 
-            if hist.empty:
+                if hist.empty:
+                    return None
+
+                current_value = float(hist['Close'].iloc[-1])
+                previous_value = float(hist['Close'].iloc[-2]) if len(hist) > 1 else current_value
+                change = current_value - previous_value
+                change_percent = (change / previous_value * 100) if previous_value != 0 else 0
+
+                return {
+                    'value': current_value,
+                    'change': change,
+                    'changePercent': change_percent,
+                    'unit': '%',
+                    'label': '10-Year Treasury',
+                    'timestamp': datetime.now().isoformat(),
+                }
+            except Exception as e:
+                print(f"Error fetching Treasury 10Y: {e}")
                 return None
 
-            current_value = float(hist['Close'].iloc[-1])
-            previous_value = float(hist['Close'].iloc[-2]) if len(hist) > 1 else current_value
-            change = current_value - previous_value
-            change_percent = (change / previous_value * 100) if previous_value != 0 else 0
-
-            return {
-                'value': current_value,
-                'change': change,
-                'changePercent': change_percent,
-                'unit': '%',
-                'label': '10-Year Treasury',
-                'timestamp': datetime.now().isoformat(),
-            }
-        except Exception as e:
-            print(f"Error fetching Treasury 10Y: {e}")
-            return None
+        return self._get_cached('treasury_10y', fetch_treasury)
 
     def get_m2_money_supply(self) -> Optional[Dict]:
         """
@@ -472,6 +526,42 @@ class MacroDataFetcher:
             print(f"Error calculating seasonality: {e}")
             return None
 
+    def get_spx_trend(self) -> Optional[Dict]:
+        """
+        Hamtar S&P 500 pris och 200-dagars MA for bull/bear market detection (cached for 5 min)
+
+        Returns:
+            Dict med SPX price, 200MA, och bull market status
+        """
+        def fetch_spx():
+            try:
+                ticker = yf.Ticker('^GSPC')
+                hist = ticker.history(period='1y')  # 1 ar for 200-dagars MA
+
+                if hist.empty or len(hist) < 200:
+                    return None
+
+                current_price = float(hist['Close'].iloc[-1])
+                ma_200 = float(hist['Close'].rolling(window=200).mean().iloc[-1])
+
+                above_ma = current_price > ma_200
+                distance_pct = ((current_price - ma_200) / ma_200) * 100
+
+                return {
+                    'price': current_price,
+                    'ma200': ma_200,
+                    'above_ma': above_ma,
+                    'distance_pct': distance_pct,
+                    'bullish': above_ma,  # SPX > 200MA = bull market
+                    'label': 'S&P 500 vs 200MA',
+                    'timestamp': datetime.now().isoformat(),
+                }
+            except Exception as e:
+                print(f"Error fetching SPX trend: {e}")
+                return None
+
+        return self._get_cached('spx_trend', fetch_spx)
+
     def get_all_macro_data(self) -> Dict:
         """
         Hämtar all makrodata i en request
@@ -485,6 +575,7 @@ class MacroDataFetcher:
             'dxy': self.get_dxy(),
             'vix': self.get_vix(),
             'treasury10y': self.get_treasury_10y(),
+            'spx_trend': self.get_spx_trend(),
             'regime': self._calculate_market_regime(),
             'sentiment': self.get_sentiment_data(),
             'correlations': self.get_market_correlations(),
