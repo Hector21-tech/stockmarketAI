@@ -18,6 +18,7 @@ import StockDetailScreen from './src/screens/StockDetailScreen';
 import SignalsScreen from './src/screens/SignalsScreen';
 import PositionsScreen from './src/screens/PositionsScreen';
 import PortfolioAnalyticsScreen from './src/screens/PortfolioAnalyticsScreen';
+import BacktestScreen from './src/screens/BacktestScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 
 // Services
@@ -241,6 +242,14 @@ function AppContent() {
               title: 'Mina Positioner',
               tabBarLabel: 'Portfolio',
               headerShown: false,
+            }}
+          />
+          <Tab.Screen
+            name="Backtest"
+            component={BacktestScreen}
+            options={{
+              title: 'Backtester',
+              tabBarLabel: 'Backtest',
             }}
           />
           <Tab.Screen
