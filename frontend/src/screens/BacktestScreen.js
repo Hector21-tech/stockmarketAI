@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   Alert
 } from 'react-native';
-import { useTheme } from '../context/ThemeContext';
+import { useTheme } from '../theme/ThemeContext';
 import { Card, Button } from '../components';
 import { apiClient } from '../api/client';
 import { Ionicons } from '@expo/vector-icons';
