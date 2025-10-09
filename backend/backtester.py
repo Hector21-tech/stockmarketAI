@@ -16,7 +16,7 @@ from macro_data import MacroDataFetcher
 class Backtester:
     def __init__(self, ticker, market='SE', start_date=None, end_date=None,
                  initial_capital=100000, mode='conservative',
-                 slippage=0.001, commission=0.0025):
+                 slippage=0.001, commission=0.0025, use_trailing_stop=True):
         """
         Initialize backtester
 
@@ -29,6 +29,7 @@ class Backtester:
             mode: Signal mode (conservative/aggressive/ai-hybrid)
             slippage: Price slippage per trade (0.1% default)
             commission: Commission per trade (0.25% default)
+            use_trailing_stop: Enable Phase 4 ATR-based trailing stop (default True)
         """
         self.ticker = ticker
         self.market = market
@@ -36,6 +37,7 @@ class Backtester:
         self.mode = mode
         self.slippage = slippage
         self.commission = commission
+        self.use_trailing_stop = use_trailing_stop  # Phase 4 feature flag
 
         # Setup dates
         self.end_date = datetime.strptime(end_date, '%Y-%m-%d') if end_date else datetime.now()
@@ -103,6 +105,32 @@ class Backtester:
             self._close_position(self.end_date, backtest_data.iloc[-1]['Close'], 'END_OF_BACKTEST')
 
         return self._generate_results()
+
+    def _calculate_atr(self, data, period=14):
+        """
+        Calculate Average True Range (ATR) for volatility-based stops
+
+        Args:
+            data: DataFrame with High, Low, Close columns
+            period: ATR period (default 14)
+
+        Returns:
+            ATR Series
+        """
+        if len(data) < period + 1:
+            return pd.Series([0] * len(data), index=data.index)
+
+        # True Range = max(high-low, abs(high-prev_close), abs(low-prev_close))
+        high_low = data['High'] - data['Low']
+        high_close = (data['High'] - data['Close'].shift()).abs()
+        low_close = (data['Low'] - data['Close'].shift()).abs()
+
+        true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+
+        # ATR = rolling mean of True Range
+        atr = true_range.rolling(window=period).mean()
+
+        return atr
 
     def _fetch_historical_data(self):
         """Fetch historical price data using yfinance directly"""
@@ -286,6 +314,10 @@ class Backtester:
             if cost > self.capital:
                 return  # Not enough capital after commission
 
+            # Calculate ATR for trailing stop (Phase 4)
+            atr_series = self._calculate_atr(data_slice)
+            current_atr = atr_series.iloc[-1] if not pd.isna(atr_series.iloc[-1]) else (price * 0.02)  # Fallback to 2% if ATR fails
+
             # Calculate stop loss and targets based on mode config
             stop_pct = self.mode_config['stop_loss_buffer'] * 100  # Convert to percentage
             target_mult = self.mode_config['target_multiplier']
@@ -300,13 +332,29 @@ class Backtester:
             target_2_pct = base_target_2 * target_mult
             target_3_pct = base_target_3 * target_mult
 
+            # Phase 4: ATR-based initial stop (Stage 1)
+            if self.use_trailing_stop:
+                # Initial trail = max(1.5×ATR, 1.2% of entry)
+                atr_stop_distance = 1.5 * current_atr
+                percent_stop_distance = entry_price * 0.012  # 1.2%
+                stop_distance = max(atr_stop_distance, percent_stop_distance)
+                initial_stop = entry_price - stop_distance
+                initial_risk = stop_distance  # Save initial risk for 1.5R calculation
+            else:
+                # Phase 3: Fixed percentage stop
+                initial_stop = entry_price * (1 - stop_pct / 100)
+                initial_risk = entry_price * (stop_pct / 100)
+
             # Open position
             self.position = {
                 'entry_date': date,
                 'entry_price': entry_price,
                 'shares': shares,
                 'initial_shares': shares,
-                'stop_loss': entry_price * (1 - stop_pct / 100),
+                'stop_loss': initial_stop,
+                'initial_risk': initial_risk,  # For 1.5R check
+                'atr': current_atr,  # Store ATR for dynamic trailing
+                'stage': 1,  # Trailing stop stage (1 or 2)
                 'target_1': entry_price * (1 + target_1_pct),
                 'target_2': entry_price * (1 + target_2_pct),
                 'target_3': entry_price * (1 + target_3_pct),
@@ -314,7 +362,8 @@ class Backtester:
                 'score': score,
                 'confidence': confidence_pct,
                 'position_size': recommended_size,
-                'risk_factors': risk_factors
+                'risk_factors': risk_factors,
+                'highest_price': entry_price  # Track highest price for trailing stop
             }
 
             self.capital -= cost
@@ -329,9 +378,44 @@ class Backtester:
             print(f"Error checking entry: {e}")
 
     def _check_exits(self, date, price, row):
-        """Check if any exit conditions are met"""
+        """Check if any exit conditions are met (Phase 4: 2-stage trailing stop)"""
         if not self.position:
             return
+
+        # Phase 4: Update trailing stop dynamically
+        if self.use_trailing_stop:
+            # Track highest price for trailing calculation
+            if price > self.position['highest_price']:
+                self.position['highest_price'] = price
+
+            entry_price = self.position['entry_price']
+            highest_price = self.position['highest_price']
+            initial_risk = self.position['initial_risk']
+            atr = self.position['atr']
+            current_stage = self.position['stage']
+
+            # Calculate current profit in R (risk multiples)
+            current_profit = price - entry_price
+            r_multiple = current_profit / initial_risk if initial_risk > 0 else 0
+
+            # Stage 2 activation: When profit ≥ 1.5R, tighten trailing stop
+            if r_multiple >= 1.5 and current_stage == 1:
+                self.position['stage'] = 2
+                # print(f"  [Phase 4] Trailing stop upgraded to Stage 2 at {r_multiple:.2f}R profit")
+
+            # Calculate trailing stop based on stage
+            if self.position['stage'] == 2:
+                # Stage 2: Tight trail = 2.2×ATR under highest price
+                trail_distance = 2.2 * atr
+                new_stop = highest_price - trail_distance
+            else:
+                # Stage 1: Initial trail = max(1.5×ATR, 1.2% of entry)
+                trail_distance = max(1.5 * atr, entry_price * 0.012)
+                new_stop = price - trail_distance  # Trail current price, not highest
+
+            # Only raise stop, never lower it
+            if new_stop > self.position['stop_loss']:
+                self.position['stop_loss'] = new_stop
 
         shares_to_sell = 0
         exit_reason = None
@@ -340,7 +424,7 @@ class Backtester:
         # Check stop loss (sells all remaining shares)
         if price <= self.position['stop_loss']:
             shares_to_sell = self.position['shares']
-            exit_reason = 'STOP_LOSS'
+            exit_reason = 'STOP_LOSS' if self.position['stage'] == 1 else 'TRAILING_STOP'
             exit_price = price * (1 - self.slippage)  # Worse price on stop loss
 
         # Check Target 3 (sell final 1/3)

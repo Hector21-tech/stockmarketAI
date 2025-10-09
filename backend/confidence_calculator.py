@@ -39,48 +39,56 @@ def calculate_confidence(
     risk_factors = []
     adjustments = 0
 
-    # VIX - Volatility Risk
+    # VIX - Volatility Risk (Phase 4: Softened - only extreme panic matters)
     if vix_value is not None:
-        if vix_value > 30:
-            adjustments -= 25
-            risk_factors.append(f"High VIX ({vix_value:.1f}) - Market panic")
-        elif vix_value > 25:
-            adjustments -= 15
-            risk_factors.append(f"Elevated VIX ({vix_value:.1f}) - Increased volatility")
-        elif vix_value > 20:
-            adjustments -= 5
-            risk_factors.append(f"Moderate VIX ({vix_value:.1f})")
+        if vix_value >= 28:  # EXTREME panic only
+            adjustments -= 15  # Reduced from -25
+            risk_factors.append(f"Extreme VIX ({vix_value:.1f}) - Market panic")
+        elif vix_value > 22:
+            adjustments -= 5  # Reduced from -15
+            risk_factors.append(f"Elevated VIX ({vix_value:.1f})")
         elif vix_value < 15:
             adjustments += 10
             # No risk factor - this is positive
 
-    # SPX Trend - Bull/Bear Market
+    # SPX Trend - Bull/Bear Market (Phase 4: Only extreme bear matters)
+    spx_falling = False
     if spx_trend:
+        distance = spx_trend.get('distance_pct', 0)
         if not spx_trend.get('bullish', True):
-            adjustments -= 20
-            distance = spx_trend.get('distance_pct', 0)
-            risk_factors.append(f"Bear Market (SPX {distance:.1f}% below 200MA)")
+            # Check if SPX is actively falling (not just below MA)
+            spx_falling = distance < -5  # More than 5% below 200MA = confirmed bear
+
+            if spx_falling:
+                adjustments -= 12  # Reduced from -20
+                risk_factors.append(f"Confirmed Bear Market (SPX {distance:.1f}% below 200MA)")
+            else:
+                adjustments -= 3  # Light penalty for just being below MA
+                # No risk factor for minor weakness
         elif spx_trend.get('bullish', False):
-            distance = spx_trend.get('distance_pct', 0)
             if distance > 5:
                 adjustments += 15
                 # Boost for strong bull market
             else:
                 adjustments += 5
 
-    # Macro Regime
+    # Macro Regime (Phase 4: Softened - only counts in extreme scenarios)
     if macro_regime:
         if macro_regime == 'bearish':
-            adjustments -= 15
-            risk_factors.append("Bearish macro regime")
+            # Only penalize if BOTH bearish macro AND confirmed bear market
+            if spx_falling:
+                adjustments -= 8  # Reduced from -15
+                risk_factors.append("Extreme bear: Bearish macro + falling SPX")
+            else:
+                adjustments -= 2  # Very light penalty for just bearish macro
         elif macro_regime == 'bullish':
             adjustments += 10
 
-    # Macro Score
+    # Macro Score (Phase 4: Lightened penalties)
     if macro_score is not None:
-        if macro_score < 4:
-            adjustments -= 10
-            risk_factors.append(f"Weak macro (score {macro_score:.1f}/10)")
+        if macro_score < 3:  # Only very weak macro matters
+            adjustments -= 5  # Reduced from -10
+            risk_factors.append(f"Very weak macro (score {macro_score:.1f}/10)")
         elif macro_score > 7:
             adjustments += 10
 
@@ -100,6 +108,7 @@ def calculate_confidence(
     final_confidence = max(0, min(100, final_confidence))  # Clamp to 0-100
 
     # 4. DETERMINE CONFIDENCE LEVEL
+    # Phase 4: Keep Phase 3 thresholds (softer penalties + trailing stop is enough)
     if final_confidence >= 80:
         level = "STRONG_BUY"
         emoji = "[STRONG]"
