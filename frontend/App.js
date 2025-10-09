@@ -5,6 +5,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
+import { Ionicons } from '@expo/vector-icons';
 
 // Theme
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
@@ -16,7 +17,7 @@ import WatchlistScreen from './src/screens/WatchlistScreen';
 import StockDetailScreen from './src/screens/StockDetailScreen';
 import SignalsScreen from './src/screens/SignalsScreen';
 import PositionsScreen from './src/screens/PositionsScreen';
-import PortfolioScreen from './src/screens/PortfolioScreen';
+import PortfolioAnalyticsScreen from './src/screens/PortfolioAnalyticsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 
 // Services
@@ -53,6 +54,38 @@ function WatchlistStack() {
         options={({ route }) => ({
           title: route.params?.ticker || 'Stock Detail',
         })}
+      />
+    </Stack.Navigator>
+  );
+}
+
+// Positions Stack Navigator (includes Portfolio Analytics)
+function PositionsStack() {
+  const { theme } = useTheme();
+
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: theme.colors.background.secondary,
+        },
+        headerTintColor: theme.colors.text.primary,
+        headerTitleStyle: {
+          fontWeight: theme.typography.fontWeight.bold,
+        },
+      }}
+    >
+      <Stack.Screen
+        name="PositionsMain"
+        component={PositionsScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Analytics"
+        component={PortfolioAnalyticsScreen}
+        options={{
+          title: 'Portfolio Analytics',
+        }}
       />
     </Stack.Navigator>
   );
@@ -109,23 +142,64 @@ function AppContent() {
       <NavigationContainer ref={navigationRef}>
         <StatusBar style={isDark ? 'light' : 'dark'} />
         <Tab.Navigator
-          screenOptions={{
+          screenOptions={({ route }) => ({
+            tabBarIcon: ({ focused, color, size }) => {
+              let iconName;
+
+              if (route.name === 'Dashboard') {
+                iconName = focused ? 'trending-up' : 'trending-up-outline';
+              } else if (route.name === 'Macro') {
+                iconName = focused ? 'globe' : 'globe-outline';
+              } else if (route.name === 'Watchlist') {
+                iconName = focused ? 'star' : 'star-outline';
+              } else if (route.name === 'Signals') {
+                iconName = focused ? 'notifications' : 'notifications-outline';
+              } else if (route.name === 'Positions') {
+                iconName = focused ? 'briefcase' : 'briefcase-outline';
+              } else if (route.name === 'Settings') {
+                iconName = focused ? 'settings' : 'settings-outline';
+              }
+
+              return <Ionicons name={iconName} size={size} color={color} />;
+            },
             tabBarActiveTintColor: theme.colors.primary,
             tabBarInactiveTintColor: theme.colors.text.tertiary,
             tabBarStyle: {
               backgroundColor: theme.colors.background.secondary,
               borderTopColor: theme.colors.border.primary,
+              borderTopWidth: 1,
+              height: 65,
+              paddingBottom: 8,
+              paddingTop: 8,
+              elevation: 8,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: -2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 8,
+            },
+            tabBarLabelStyle: {
+              fontSize: 10,
+              fontWeight: '600',
+              marginTop: 0,
+            },
+            tabBarIconStyle: {
+              marginTop: 2,
             },
             headerStyle: {
               backgroundColor: theme.colors.background.secondary,
               borderBottomColor: theme.colors.border.primary,
+              elevation: 4,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
             },
             headerTintColor: theme.colors.text.primary,
             headerTitleStyle: {
               fontWeight: theme.typography.fontWeight.bold,
               fontSize: theme.typography.fontSize.lg,
             },
-          }}
+          })}
         >
           <Tab.Screen
             name="Dashboard"
@@ -162,18 +236,11 @@ function AppContent() {
           />
           <Tab.Screen
             name="Positions"
-            component={PositionsScreen}
+            component={PositionsStack}
             options={{
               title: 'Mina Positioner',
-              tabBarLabel: 'Positioner',
-            }}
-          />
-          <Tab.Screen
-            name="Portfolio"
-            component={PortfolioScreen}
-            options={{
-              title: 'Portfolio Analytics',
-              tabBarLabel: 'Analytics',
+              tabBarLabel: 'Portfolio',
+              headerShown: false,
             }}
           />
           <Tab.Screen

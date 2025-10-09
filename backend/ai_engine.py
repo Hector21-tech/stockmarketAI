@@ -8,6 +8,7 @@ from technical_analysis import TechnicalAnalyzer
 from macro_data import MacroDataFetcher
 from signal_modes import get_mode_config
 from ai_service import ai_service
+from seasonality_service import SeasonalityService
 from typing import Dict, List, Optional
 import json
 
@@ -58,6 +59,7 @@ class MarketmateAI:
         self.fetcher = StockDataFetcher()
         self.analyzer = TechnicalAnalyzer()
         self.macro_fetcher = MacroDataFetcher()
+        self.seasonality_service = SeasonalityService()
 
     def analyze_stock(self, ticker: str, market: str = "SE", mode: str = "conservative") -> Dict:
         """
@@ -82,14 +84,25 @@ class MarketmateAI:
         # Teknisk analys
         tech_analysis = self.analyzer.get_full_analysis(data)
 
-        # Hämta makrodata
-        macro_regime = self.macro_fetcher._calculate_market_regime()
-        vix_data = self.macro_fetcher.get_vix()
-        sentiment_data = self.macro_fetcher.get_sentiment_data()
+        # Hämta makrodata (full dict för seasonality service)
+        macro_data = self.macro_fetcher.get_all_macro_data()
+        macro_regime = macro_data.get('regime')
+        vix_data = macro_data.get('vix')
+        sentiment_data = macro_data.get('sentiment')
         macro_score_data = self.macro_fetcher.get_macro_score()
 
-        # Generera signal (inkluderar macro context och mode)
-        signal = self._generate_signal(tech_analysis, macro_regime, vix_data, sentiment_data, macro_score_data, mode_config)
+        # Generera signal (inkluderar ticker, market, macro context och mode)
+        signal = self._generate_signal(
+            analysis=tech_analysis,
+            ticker=ticker,
+            market=market,
+            macro_regime=macro_regime,
+            vix_data=vix_data,
+            sentiment_data=sentiment_data,
+            macro_score_data=macro_score_data,
+            macro_data=macro_data,
+            mode_config=mode_config
+        )
 
         # Beräkna entry, stop, targets (med mode config)
         trade_setup = self._calculate_trade_levels(tech_analysis, signal, mode_config)
@@ -118,13 +131,19 @@ class MarketmateAI:
             'timestamp': data.index[-1].isoformat()
         }
 
-    def _generate_signal(self, analysis: Dict, macro_regime: str = None,
-                        vix_data: Dict = None, sentiment_data: Dict = None,
-                        macro_score_data: Dict = None, mode_config: Dict = None) -> Dict:
+    def _generate_signal(self, analysis: Dict, ticker: str = None, market: str = 'SE',
+                        macro_regime: str = None, vix_data: Dict = None, sentiment_data: Dict = None,
+                        macro_score_data: Dict = None, macro_data: Dict = None,
+                        mode_config: Dict = None) -> Dict:
         """
         Genererar köp/sälj/hold signal baserat på Marketmate-kriterier
-        ENHANCED: Nu inkluderar macro regime, VIX, sentiment OCH signal mode
-        FORMULA: TotalScore = (Technical * tech_weight) + (Macro * macro_weight)
+        ENHANCED: Nu inkluderar macro regime, VIX, sentiment, seasonality OCH signal mode
+        FORMULA: TotalScore = (Technical * tech_weight) + (Macro+Seasonality * macro_weight)
+
+        Args:
+            ticker: Stock ticker (för seasonality lookup)
+            market: Market code ('SE', 'US', etc.) for ticker formatting
+            macro_data: Full macro data dict (för seasonality gates)
 
         Returns:
             Dict med signal, styrka och motivering
@@ -167,10 +186,10 @@ class MarketmateAI:
         # 6. VOLYM ANALYS (Marketmate: Volym bekräftar rörelsen!)
         volume_ratio = analysis.get('volume_ratio', 1.0)
         if volume_ratio > 1.5:  # Volym 50% över genomsnitt
-            signals.append(f'✓ Hög volym ({volume_ratio:.1f}x genomsnitt)')
+            signals.append(f'Hög volym ({volume_ratio:.1f}x genomsnitt)')
             technical_score += 2
         elif volume_ratio > 1.2:  # Volym 20% över genomsnitt
-            signals.append(f'✓ Ökad volym ({volume_ratio:.1f}x genomsnitt)')
+            signals.append(f'Ökad volym ({volume_ratio:.1f}x genomsnitt)')
             technical_score += 1
 
         # 7. BREAKOUT DETECTION (MarketMate: Trendbrott och breakouts!)
@@ -181,15 +200,15 @@ class MarketmateAI:
         # Breakout över resistance
         if resistance and price > resistance * 0.98:  # Inom 2% av breakout
             if price > resistance:
-                signals.append('🚀 BREAKOUT över motstånd!')
+                signals.append('BREAKOUT över motstånd!')
                 technical_score += 3  # Starkt köpsignal
             else:
-                signals.append('📊 Nära breakout över motstånd')
+                signals.append('Nära breakout över motstånd')
                 technical_score += 1
 
         # Support håller (pris nära support men över)
         if support and price < support * 1.03 and price > support:
-            signals.append('✅ Support håller')
+            signals.append('Support håller')
             technical_score += 1
 
         # === MACRO & SENTIMENT FACTORS ===
@@ -197,20 +216,20 @@ class MarketmateAI:
         # 8. MARKET REGIME (Marketmate: Likviditet och makro är viktigt!)
         if macro_regime:
             if macro_regime == 'bullish':
-                signals.append('✓ BULLISH macro regime')
+                signals.append('BULLISH macro regime')
                 technical_score += 2  # Öka viktningen för bullish regime
             elif macro_regime == 'bearish':
-                signals.append('⚠ BEARISH macro regime')
+                signals.append('[!] BEARISH macro regime')
                 technical_score -= 2  # Minska score vid bearish regime
 
         # 9. VIX / FEAR INDEX
         if vix_data and vix_data.get('value'):
             vix_value = vix_data['value']
             if vix_value < 15:  # Low fear = good for risk assets
-                signals.append('✓ Low VIX (complacency)')
+                signals.append('Low VIX (complacency)')
                 technical_score += 1
             elif vix_value > 25:  # High fear = caution
-                signals.append('⚠ Elevated VIX (fear)')
+                signals.append('[!] Elevated VIX (fear)')
                 technical_score -= 1
 
         # 10. SENTIMENT (Fear & Greed)
@@ -218,13 +237,13 @@ class MarketmateAI:
             fg = sentiment_data['fearGreed']
             fg_label = fg.get('label', '')
             if 'Extreme Fear' in fg_label:
-                signals.append('✓ Extreme Fear (contrarian buy)')
+                signals.append('Extreme Fear (contrarian buy)')
                 technical_score += 2
             elif 'Fear' in fg_label:
-                signals.append('✓ Fear sentiment (opportunity)')
+                signals.append('Fear sentiment (opportunity)')
                 technical_score += 1
             elif 'Extreme Greed' in fg_label:
-                signals.append('⚠ Extreme Greed (caution)')
+                signals.append('[!] Extreme Greed (caution)')
                 technical_score -= 2
 
         # === BEARISH SIGNALS ===
@@ -252,7 +271,41 @@ class MarketmateAI:
             macro_score = macro_score_data.get('score', 5.0)
             # Lägg till macro score i reasons
             macro_classification = macro_score_data.get('classification', 'Unknown')
-            signals.append(f'📊 Makro Score: {macro_score:.1f}/10 ({macro_classification})')
+            signals.append(f'Makro Score: {macro_score:.1f}/10 ({macro_classification})')
+
+        # === STOCK SEASONALITY MODIFIER ===
+        # Hämta stock-specific seasonality modifier (±0.5 poäng med gates)
+        seasonality_result = None
+        seasonality_modifier = 0.0
+
+        if ticker and macro_data:
+            try:
+                seasonality_result = self.seasonality_service.get_stock_modifier(
+                    ticker=ticker,
+                    market=market,
+                    macro_data=macro_data
+                )
+                seasonality_modifier = seasonality_result.get('modifier', 0.0)
+
+                # Lägg till seasonality i signals om modifier != 0
+                if seasonality_modifier != 0:
+                    raw_return = seasonality_result.get('raw_return', 0)
+                    confidence = seasonality_result.get('confidence', 'none')
+                    signals.append(
+                        f"Seasonal Modifier: {seasonality_modifier:+.2f} "
+                        f"(historiskt {raw_return:+.1f}%, {confidence} confidence)"
+                    )
+
+                    # Visa gate warning om applicable
+                    if seasonality_result.get('gated'):
+                        gate_reason = seasonality_result.get('gate_reason')
+                        signals.append(f"[!] Seasonal boost reduced: {gate_reason}")
+            except Exception as e:
+                print(f"Warning: Could not fetch seasonality for {ticker}: {e}")
+
+        # Apply seasonality modifier to macro score
+        # Range: macro_score (0-10) + seasonality_modifier (±0.5)
+        adjusted_macro_score = macro_score + seasonality_modifier
 
         # === AI SCORE (för AI-Hybrid mode) ===
         ai_score = 0
@@ -285,15 +338,16 @@ class MarketmateAI:
 
             # Lägg till AI components i signals
             if ai_result['sentiment_component'] > 0:
-                signals.append(f"🤖 AI Sentiment: {ai_result['sentiment_component']:.1f}/4")
+                signals.append(f"[AI] Sentiment: {ai_result['sentiment_component']:.1f}/4")
             if ai_result['pattern_component'] > 0:
-                signals.append(f"📊 AI Patterns: {ai_result['pattern_component']:.1f}/3")
-            signals.append(f"⚡ AI Momentum: {ai_result['momentum_component']:.1f}/3")
+                signals.append(f"[AI] Patterns: {ai_result['pattern_component']:.1f}/3")
+            signals.append(f"[AI] Momentum: {ai_result['momentum_component']:.1f}/3")
 
-        # MARKETMATE FORMULA: TotalScore = (Technical * weight) + (AI * weight) + (Macro * weight)
-        # Normalize macro_score from 0-10 to match technical scale (-10 to +10)
+        # MARKETMATE FORMULA: TotalScore = (Technical * weight) + (AI * weight) + (Macro+Seasonality * weight)
+        # Normalize adjusted_macro_score from 0-10 to match technical scale (-10 to +10)
         # Macro 5 = neutral (0), Macro 10 = bullish (+10), Macro 0 = bearish (-10)
-        normalized_macro = (macro_score - 5) * 2  # Range: -10 to +10
+        # Note: adjusted_macro_score includes seasonality modifier (±0.5)
+        normalized_macro = (adjusted_macro_score - 5) * 2  # Range: -10 to +10
 
         # Combined score (använd mode config weights)
         tech_weight = mode_config.get('tech_weight', 0.7)
@@ -307,14 +361,14 @@ class MarketmateAI:
             combined_score = (net_technical_score * tech_weight) + (normalized_macro * macro_weight)
 
         # MACRO BIAS LOGIC
-        # Macro < 4: Tone down buy signals (reduce score)
-        # Macro > 7: Strengthen signals (boost score)
-        if macro_score < 4:
+        # Adjusted Macro < 4: Tone down buy signals (reduce score)
+        # Adjusted Macro > 7: Strengthen signals (boost score)
+        if adjusted_macro_score < 4:
             combined_score -= 1  # Penalty for weak macro
-            signals.append('⚠️ Svag makro - ton down signals')
-        elif macro_score > 7:
+            signals.append('[!] Svag makro - ton down signals')
+        elif adjusted_macro_score > 7:
             combined_score += 1  # Bonus for strong macro
-            signals.append('✅ Stark makro - boost signals')
+            signals.append('Stark makro - boost signals')
 
         # BESLUT (baserat på combined_score och mode config)
         min_buy_score = mode_config.get('min_buy_score', 4.0)
@@ -336,6 +390,7 @@ class MarketmateAI:
             'score': round(combined_score, 1),
             'technical_score': net_technical_score,
             'macro_score': macro_score,
+            'adjusted_macro_score': round(adjusted_macro_score, 2),
             'reasons': signals,
             'summary': self._generate_summary(action, signals)
         }
@@ -344,6 +399,17 @@ class MarketmateAI:
         if ai_weight > 0 and ai_details:
             result['ai_score'] = ai_details['ai_score']
             result['ai_details'] = ai_details
+
+        # Lägg till seasonality data om det finns
+        if seasonality_result:
+            result['seasonality'] = {
+                'modifier': seasonality_result.get('modifier', 0),
+                'raw_return': seasonality_result.get('raw_return', 0),
+                'confidence': seasonality_result.get('confidence', 'none'),
+                'ai_rationale': seasonality_result.get('ai_rationale', ''),
+                'gated': seasonality_result.get('gated', False),
+                'gate_reason': seasonality_result.get('gate_reason')
+            }
 
         return result
 

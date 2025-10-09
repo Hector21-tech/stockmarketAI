@@ -10,9 +10,11 @@ from stock_data import StockDataFetcher
 from technical_analysis import TechnicalAnalyzer
 from ai_engine import MarketmateAI
 from trade_manager import TradeManager
+from portfolio_analytics import PortfolioAnalytics
 from notification_service import NotificationService
 from macro_data import MacroDataFetcher
 from signal_modes import get_available_modes, get_mode_config, validate_mode
+from alert_scheduler import get_scheduler
 import json
 import pandas as pd
 import threading
@@ -47,6 +49,7 @@ fetcher = StockDataFetcher()
 analyzer = TechnicalAnalyzer()
 ai_engine = MarketmateAI()
 trade_manager = TradeManager()
+portfolio_analytics = PortfolioAnalytics(trade_manager)
 notification_service = NotificationService()
 macro_fetcher = MacroDataFetcher()
 
@@ -227,6 +230,69 @@ def get_historical_data():
         'data': data,
         'count': len(data)
     })
+
+
+@app.route('/api/stock/omx30', methods=['GET'])
+def get_omx30_list():
+    """
+    Returnerar alla OMX30-aktier med basic info (SNABBT - ingen API call)
+    Frontend hamtar priser separat via /api/stock/quotes
+    """
+    from tickers import OMX30_TICKERS
+
+    # Try to use metadata cache (instant, no API calls)
+    try:
+        from stock_metadata_cache import StockMetadataCache
+        cache = StockMetadataCache()
+
+        stocks = []
+        for ticker in OMX30_TICKERS:
+            # Get from cache (instant)
+            cached = cache.get(ticker, 'SE')
+
+            if cached:
+                # Use cached data
+                stocks.append({
+                    'ticker': cached['ticker'],
+                    'name': cached['name'],
+                    'market': 'SE',
+                    'exchange': 'Stockholm',
+                    'symbol': cached['symbol']
+                })
+            else:
+                # Fallback: basic info without API call
+                stocks.append({
+                    'ticker': ticker,
+                    'name': ticker,  # Frontend will update with real name
+                    'market': 'SE',
+                    'exchange': 'Stockholm',
+                    'symbol': fetcher.get_ticker_symbol(ticker, 'SE')
+                })
+
+        return jsonify({
+            'index': 'OMX30',
+            'count': len(stocks),
+            'stocks': stocks
+        })
+
+    except Exception as e:
+        print(f"[WARN] Cache failed, using fallback: {e}")
+        # Fallback: return basic info without API calls
+        stocks = []
+        for ticker in OMX30_TICKERS:
+            stocks.append({
+                'ticker': ticker,
+                'name': ticker,
+                'market': 'SE',
+                'exchange': 'Stockholm',
+                'symbol': fetcher.get_ticker_symbol(ticker, 'SE')
+            })
+
+        return jsonify({
+            'index': 'OMX30',
+            'count': len(stocks),
+            'stocks': stocks
+        })
 
 
 # ============ AI ANALYSIS ENDPOINTS ============
@@ -411,9 +477,28 @@ def check_positions():
     """Kollar alla positioner mot targets och stop loss"""
     notifications = trade_manager.check_positions()
 
+    # Hämta last_checked från scheduler
+    scheduler = get_scheduler()
+    last_check = scheduler.get_last_check()
+
     return jsonify({
         'notifications': notifications,
-        'count': len(notifications)
+        'count': len(notifications),
+        'last_checked': last_check
+    })
+
+
+@app.route('/api/alerts/history', methods=['GET'])
+def get_alerts_history():
+    """Hämtar alert history"""
+    limit = request.args.get('limit', 50, type=int)
+
+    scheduler = get_scheduler()
+    history = scheduler.get_alerts_history(limit)
+
+    return jsonify({
+        'alerts': history,
+        'count': len(history)
     })
 
 
@@ -465,7 +550,7 @@ def update_stop_loss():
 def get_portfolio_analytics():
     """Hämtar portfolio analytics metrics"""
     try:
-        analytics = trade_manager.get_portfolio_analytics()
+        analytics = portfolio_analytics.get_full_analytics()
         return jsonify(analytics)
     except Exception as e:
         print(f"Error getting portfolio analytics: {e}")
@@ -476,8 +561,8 @@ def get_portfolio_analytics():
 def get_trade_history():
     """Hämtar trade history (alla entries och exits)"""
     try:
-        history = trade_manager.get_trade_history()
-        return jsonify({'trades': history})
+        history = portfolio_analytics.get_trade_history()
+        return jsonify({'trades': history, 'count': len(history)})
     except Exception as e:
         print(f"Error getting trade history: {e}")
         return jsonify({'error': str(e)}), 500
@@ -792,6 +877,7 @@ if __name__ == '__main__':
     print("  GET  /api/stock/info?ticker=VOLVO-B")
     print("  GET  /api/stock/search?q=VOLVO&limit=10")
     print("  GET  /api/stock/historical?ticker=VOLVO-B&period=3mo")
+    print("  GET  /api/stock/omx30")
     print("  POST /api/analyze")
     print("  POST /api/scan")
     print("  POST /api/signals/buy")
@@ -813,6 +899,12 @@ if __name__ == '__main__':
     print("\n" + "="*60)
     print("Running on http://127.0.0.1:5000")
     print("="*60 + "\n")
+
+    # Start alert scheduler (only in werkzeug child process, not reloader parent)
+    import os
+    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        scheduler = get_scheduler()
+        scheduler.start()
 
     # Run with SocketIO support
     socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)

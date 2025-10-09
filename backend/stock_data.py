@@ -8,6 +8,17 @@ import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
+# Import metadata cache for fast search
+try:
+    from stock_metadata_cache import StockMetadataCache
+    CACHE_AVAILABLE = True
+except ImportError:
+    StockMetadataCache = None
+    CACHE_AVAILABLE = False
+
+# Import Swedish tickers
+from tickers import SWEDISH_TICKERS
+
 class StockDataFetcher:
     """Hamtar och hanterar aktiedata fran Yahoo Finance"""
 
@@ -15,99 +26,20 @@ class StockDataFetcher:
     SWEDISH_SUFFIX = ".ST"  # Stockholm
     US_SUFFIX = ""  # USA behover inget suffix
 
-    # Mapping for svenska aktier (ticker -> Yahoo symbol)
-    SWEDISH_TICKERS = {
-        # OMX30 Storbolag
-        "VOLVO-B": "VOLV-B.ST",
-        "VOLVO B": "VOLV-B.ST",
-        "HM-B": "HM-B.ST",
-        "HM B": "HM-B.ST",
-        "H&M-B": "HM-B.ST",
-        "H&M B": "HM-B.ST",
-        "ERIC-B": "ERIC-B.ST",
-        "ERIC B": "ERIC-B.ST",
-        "ABB": "ABB.ST",
-        "AZN": "AZN.ST",
-        "INVE-B": "INVE-B.ST",  # Investor B
-        "INVE B": "INVE-B.ST",
-        "INVESTOR-B": "INVE-B.ST",
-        "INVESTOR B": "INVE-B.ST",
-        "SEB-A": "SEB-A.ST",
-        "SEB A": "SEB-A.ST",
-        "SWED-A": "SWED-A.ST",  # Swedbank A
-        "SWED A": "SWED-A.ST",
-        "ATCO-A": "ATCO-A.ST",  # Atlas Copco A
-        "ATCO A": "ATCO-A.ST",
-        "ATCO-B": "ATCO-B.ST",  # Atlas Copco B
-        "ATCO B": "ATCO-B.ST",
-        "HEXA-B": "HEXA-B.ST",  # Hexagon B
-        "HEXA B": "HEXA-B.ST",
-        "SAND": "SAND.ST",  # Sandvik
-        "SKF-B": "SKF-B.ST",
-        "SKF B": "SKF-B.ST",
-        "ALFA": "ALFA.ST",  # Alfa Laval
-        "ASSA-B": "ASSA-B.ST",  # ASSA ABLOY B
-        "ASSA B": "ASSA-B.ST",
-
-        # Banker & Finans
-        "SHB-A": "SHB-A.ST",  # Handelsbanken A
-        "SHB A": "SHB-A.ST",
-        "NDA-SE": "NDA-SE.ST",  # Nordea
-        "NDA SE": "NDA-SE.ST",
-
-        # Telekom & Tech
-        "TELIA": "TELIA.ST",
-        "SINCH": "SINCH.ST",
-        "ESSITY-B": "ESSITY-B.ST",
-        "ESSITY B": "ESSITY-B.ST",
-
-        # Industri & Manufacturing
-        "ELUX-B": "ELUX-B.ST",  # Electrolux B
-        "ELUX B": "ELUX-B.ST",
-        "GETI-B": "GETI-B.ST",  # Getinge B
-        "GETI B": "GETI-B.ST",
-        "SKA-B": "SKA-B.ST",  # Skanska B
-        "SKA B": "SKA-B.ST",
-        "BOL": "BOL.ST",  # Boliden
-        "SSAB-A": "SSAB-A.ST",  # SSAB A
-        "SSAB A": "SSAB-A.ST",
-        "SSAB-B": "SSAB-B.ST",  # SSAB B
-        "SSAB B": "SSAB-B.ST",
-
-        # Fastighet
-        "FABG": "FABG.ST",  # Fabege
-        "SBB-B": "SBB-B.ST",  # Samhallsbyggnadsbolaget B
-        "SBB B": "SBB-B.ST",
-        "CAST": "CAST.ST",  # Castellum
-        "WIHL": "WIHL.ST",  # Wihlborgs
-
-        # Konsument & Retail
-        "ICA": "ICA.ST",  # ICA Gruppen
-        "AXFO": "AXFO.ST",  # Axfood
-
-        # Hälsovård & Pharma
-        "SWMA": "SWMA.ST",  # Swedish Match (delisted, but keep for historical)
-
-        # Gaming & Betting
-        "EVO": "EVO.ST",  # Evolution
-        "KINV-B": "KINV-B.ST",  # Kinnevik B
-        "KINV B": "KINV-B.ST",
-        "MTG-B": "MTG-B.ST",  # Modern Times Group B
-        "MTG B": "MTG-B.ST",
-
-        # Telecom & Internet
-        "TEL2-B": "TEL2-B.ST",  # Tele2 B
-        "TEL2 B": "TEL2-B.ST",
-
-        # Materials & Mining
-        "LUND": "LUND.ST",  # Lundin Mining
-
-        # Energy
-        "EQNR": "EQNR.ST",  # Equinor (Norwegian but traded in Stockholm)
-    }
+    # Reference to shared tickers (from tickers.py)
+    SWEDISH_TICKERS = SWEDISH_TICKERS
 
     def __init__(self):
         self.cache = {}  # Cache for att minska API-anrop
+
+        # Initialize metadata cache for fast search (no API calls)
+        if StockMetadataCache:
+            try:
+                self.metadata_cache = StockMetadataCache()
+            except:
+                self.metadata_cache = None
+        else:
+            self.metadata_cache = None
 
     def get_ticker_symbol(self, ticker: str, market: str = "SE") -> str:
         """
@@ -344,6 +276,7 @@ class StockDataFetcher:
     def search_ticker(self, query: str, limit: int = 10) -> List[Dict]:
         """
         Soker efter aktier baserat pa namn eller ticker
+        OPTIMIZED: Uses metadata cache (NO API calls!) for Swedish stocks
 
         Args:
             query: Sokord (foretag eller ticker)
@@ -355,45 +288,60 @@ class StockDataFetcher:
         results = []
         query_upper = query.upper()
 
-        # 1. Sok bland svenska aktier (SWEDISH_TICKERS)
-        for ticker, yahoo_symbol in self.SWEDISH_TICKERS.items():
-            if query_upper in ticker.upper():
-                try:
-                    # Hamta namn for att visa
-                    info = self.get_stock_info(ticker, "SE")
-                    results.append({
-                        'ticker': ticker,
-                        'name': info.get('name', ticker),
-                        'market': 'SE',
-                        'exchange': 'Stockholm',
-                        'symbol': yahoo_symbol
-                    })
-                except:
-                    results.append({
-                        'ticker': ticker,
-                        'name': ticker,
-                        'market': 'SE',
-                        'exchange': 'Stockholm',
-                        'symbol': yahoo_symbol
-                    })
+        # FAST PATH: Use metadata cache if available (NO API calls!)
+        if self.metadata_cache:
+            try:
+                cached_results = self.metadata_cache.search(query, limit=limit)
+                results.extend(cached_results)
+            except Exception as e:
+                print(f"[WARN] Metadata cache search failed: {e}")
+                # Fall through to slow path below
 
-        # 2. Sok efter foretagsnamn bland svenska aktier
-        if len(results) < limit:
+        # SLOW PATH: Fallback if cache not available or failed
+        if not results:
+            # 1. Sok bland svenska aktier (SWEDISH_TICKERS) - WITH API CALLS (SLOW!)
             for ticker, yahoo_symbol in self.SWEDISH_TICKERS.items():
-                if ticker not in [r['ticker'] for r in results]:  # Undvik dubbletter
+                if len(results) >= limit:
+                    break
+                if query_upper in ticker.upper():
                     try:
+                        # Hamta namn for att visa (API CALL - SLOW!)
                         info = self.get_stock_info(ticker, "SE")
-                        name = info.get('name', ticker)
-                        if query_upper in name.upper():
-                            results.append({
-                                'ticker': ticker,
-                                'name': name,
-                                'market': 'SE',
-                                'exchange': 'Stockholm',
-                                'symbol': yahoo_symbol
-                            })
+                        results.append({
+                            'ticker': ticker,
+                            'name': info.get('name', ticker),
+                            'market': 'SE',
+                            'exchange': 'Stockholm',
+                            'symbol': yahoo_symbol
+                        })
                     except:
-                        pass
+                        results.append({
+                            'ticker': ticker,
+                            'name': ticker,
+                            'market': 'SE',
+                            'exchange': 'Stockholm',
+                            'symbol': yahoo_symbol
+                        })
+
+            # 2. Sok efter foretagsnamn bland svenska aktier (SLOW!)
+            if len(results) < limit:
+                for ticker, yahoo_symbol in self.SWEDISH_TICKERS.items():
+                    if len(results) >= limit:
+                        break
+                    if ticker not in [r['ticker'] for r in results]:  # Undvik dubbletter
+                        try:
+                            info = self.get_stock_info(ticker, "SE")
+                            name = info.get('name', ticker)
+                            if query_upper in name.upper():
+                                results.append({
+                                    'ticker': ticker,
+                                    'name': name,
+                                    'market': 'SE',
+                                    'exchange': 'Stockholm',
+                                    'symbol': yahoo_symbol
+                                })
+                        except:
+                            pass
 
         # 3. Sok bland amerikanska aktier (prova direkt ticker)
         if len(results) < limit:

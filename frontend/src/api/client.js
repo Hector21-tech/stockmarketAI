@@ -5,9 +5,12 @@ const API_BASE_URL = 'http://192.168.1.46:5000/api';
 // For emulator: http://10.0.2.2:5000/api
 // For fysisk enhet: http://DIN_DATORS_IP:5000/api
 
+// Export API_URL for direct fetch calls
+export const API_URL = API_BASE_URL;
+
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000,
+  timeout: 60000, // 60 seconds (increased for AI mode)
   headers: {
     'Content-Type': 'application/json',
   },

@@ -19,7 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../theme/ThemeContext';
 import { Card, PriceText, Button } from '../components';
-import { api } from '../api/client';
+import { api, API_URL } from '../api/client';
 import WebSocketService from '../services/WebSocketService';
 
 export default function WatchlistScreen({ navigation }) {
@@ -36,11 +36,22 @@ export default function WatchlistScreen({ navigation }) {
   const [isScanning, setIsScanning] = useState(false);
   const [showRanked, setShowRanked] = useState(false);
   const [signalMode, setSignalMode] = useState('conservative');
+  const [activeList, setActiveList] = useState('my-list'); // 'my-list' | 'omx30'
 
   useEffect(() => {
-    loadWatchlist();
-    loadSignalMode();
+    const initializeScreen = async () => {
+      await loadActiveList(); // Wait for activeList to load first
+      loadSignalMode();
+    };
+    initializeScreen();
   }, []);
+
+  // Reload when active list changes
+  useEffect(() => {
+    if (activeList) {
+      loadWatchlist();
+    }
+  }, [activeList]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
@@ -58,12 +69,17 @@ export default function WatchlistScreen({ navigation }) {
   // Debounced search effect
   useEffect(() => {
     if (newTicker.trim().length >= 2) {
+      // Clear old results immediately for better UX
+      setSearchResults([]);
+      setIsSearching(true);
+
       const timer = setTimeout(() => {
         searchStocks(newTicker.trim());
-      }, 300); // 300ms debounce
+      }, 150); // 150ms debounce (faster!)
       return () => clearTimeout(timer);
     } else {
       setSearchResults([]);
+      setIsSearching(false);
     }
   }, [newTicker]);
 
@@ -113,8 +129,12 @@ export default function WatchlistScreen({ navigation }) {
   // Subscribe to watchlist updates when watchlist changes
   useEffect(() => {
     if (watchlist.length > 0 && WebSocketService.isConnected()) {
-      console.log('Subscribing to watchlist:', watchlist);
-      WebSocketService.subscribeToWatchlist(watchlist, 'SE');
+      // Extract tickers from watchlist (handle both string arrays and object arrays)
+      const tickers = watchlist.map(item =>
+        typeof item === 'string' ? item : item.ticker
+      );
+      console.log('Subscribing to watchlist:', tickers);
+      WebSocketService.subscribeToWatchlist(tickers, 'SE');
     }
   }, [watchlist, wsConnected]);
 
@@ -133,19 +153,118 @@ export default function WatchlistScreen({ navigation }) {
     }
   };
 
+  const loadActiveList = async () => {
+    try {
+      const savedList = await AsyncStorage.getItem('activeWatchlist');
+      if (savedList) {
+        setActiveList(savedList);
+      }
+    } catch (error) {
+      console.error('Error loading active list:', error);
+    }
+  };
+
+  const switchList = async (listId) => {
+    // Clear stocks immediately to prevent rendering old data
+    setStocks([]);
+    setWatchlist([]);
+
+    setActiveList(listId);
+    await AsyncStorage.setItem('activeWatchlist', listId);
+
+    // Load data immediately for the selected list
+    try {
+      if (listId === 'omx30') {
+        // Load OMX30 from backend
+        setLoading(true);
+        const response = await fetch(`${API_URL}/stock/omx30`);
+        const data = await response.json();
+        console.log('OMX30 loaded:', data.stocks?.length, 'stocks');
+
+        if (data.stocks) {
+          // Fetch prices immediately (don't wait for useEffect)
+          const tickers = data.stocks.map(s => s.ticker);
+          const quotesResponse = await api.getMultipleQuotes(tickers, 'SE');
+          const quotesData = quotesResponse.data.quotes;
+
+          // Merge prices with stock data
+          const stocksWithPrices = data.stocks.map(stock => ({
+            ...stock,
+            price: quotesData[stock.ticker]?.price,
+            change: quotesData[stock.ticker]?.change,
+            changePercent: quotesData[stock.ticker]?.changePercent,
+          }));
+
+          setWatchlist(stocksWithPrices);
+          setStocks(stocksWithPrices);
+        }
+        setLoading(false);
+      } else {
+        // Load user's custom watchlist
+        setLoading(true);
+        const watchlistJson = await AsyncStorage.getItem('watchlist');
+        if (watchlistJson) {
+          const list = JSON.parse(watchlistJson);
+          console.log('My list loaded:', list.length, 'tickers');
+          setWatchlist(list);
+          // fetchWatchlistData will be called by useEffect
+        } else {
+          // Default watchlist
+          const defaultWatchlist = ['VOLVO-B', 'HM-B', 'ERIC-B', 'ABB', 'AZN'];
+          setWatchlist(defaultWatchlist);
+          await AsyncStorage.setItem('watchlist', JSON.stringify(defaultWatchlist));
+        }
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Error switching list:', error);
+      setLoading(false);
+    }
+  };
+
   const loadWatchlist = async () => {
     try {
-      const watchlistJson = await AsyncStorage.getItem('watchlist');
-      if (watchlistJson) {
-        setWatchlist(JSON.parse(watchlistJson));
+      if (activeList === 'omx30') {
+        // Load OMX30 from backend
+        setLoading(true);
+        const response = await fetch(`${API_URL}/stock/omx30`);
+        const data = await response.json();
+
+        if (data.stocks) {
+          // Fetch prices immediately (don't wait for useEffect)
+          const tickers = data.stocks.map(s => s.ticker);
+          const quotesResponse = await api.getMultipleQuotes(tickers, 'SE');
+          const quotesData = quotesResponse.data.quotes;
+
+          // Merge prices with stock data
+          const stocksWithPrices = data.stocks.map(stock => ({
+            ...stock,
+            price: quotesData[stock.ticker]?.price,
+            change: quotesData[stock.ticker]?.change,
+            changePercent: quotesData[stock.ticker]?.changePercent,
+          }));
+
+          setWatchlist(stocksWithPrices);
+          setStocks(stocksWithPrices);
+        }
+        setLoading(false);
       } else {
-        // Default watchlist
-        const defaultWatchlist = ['VOLVO-B', 'HM-B', 'ERIC-B', 'ABB', 'AZN'];
-        setWatchlist(defaultWatchlist);
-        await AsyncStorage.setItem('watchlist', JSON.stringify(defaultWatchlist));
+        // Load user's custom watchlist (ticker strings)
+        const watchlistJson = await AsyncStorage.getItem('watchlist');
+        if (watchlistJson) {
+          const tickers = JSON.parse(watchlistJson);
+          setWatchlist(tickers); // Array of strings
+          // fetchWatchlistData will create stocks objects from tickers
+        } else {
+          // Default watchlist
+          const defaultWatchlist = ['VOLVO-B', 'HM-B', 'ERIC-B', 'ABB', 'AZN'];
+          setWatchlist(defaultWatchlist);
+          await AsyncStorage.setItem('watchlist', JSON.stringify(defaultWatchlist));
+        }
       }
     } catch (error) {
       console.error('Error loading watchlist:', error);
+      setLoading(false);
     }
   };
 
@@ -161,6 +280,37 @@ export default function WatchlistScreen({ navigation }) {
   const fetchWatchlistData = async () => {
     setLoading(true);
     try {
+      // If OMX30 is active, watchlist already contains basic stock objects
+      // Fetch prices in parallel for all 30 stocks (FAST!)
+      if (activeList === 'omx30') {
+        // Safety check: ensure watchlist contains objects, not strings
+        if (watchlist.length === 0 || typeof watchlist[0] === 'string') {
+          console.warn('Watchlist not ready for OMX30, skipping fetch');
+          setLoading(false);
+          return;
+        }
+
+        // Extract tickers from stock objects
+        const tickers = watchlist.map(stock => stock.ticker);
+
+        // Fetch all prices in parallel (single API call)
+        const response = await api.getMultipleQuotes(tickers, 'SE');
+        const quotesData = response.data.quotes;
+
+        // Merge prices with existing stock data
+        const stocksWithPrices = watchlist.map(stock => ({
+          ...stock,
+          price: quotesData[stock.ticker]?.price,
+          change: quotesData[stock.ticker]?.change,
+          changePercent: quotesData[stock.ticker]?.changePercent,
+        }));
+
+        setStocks(stocksWithPrices);
+        setLoading(false);
+        return;
+      }
+
+      // For "Min Lista", watchlist is an array of ticker strings
       const response = await api.getMultipleQuotes(watchlist, 'SE');
       const quotesData = response.data.quotes;
 
@@ -208,40 +358,59 @@ export default function WatchlistScreen({ navigation }) {
       const currentMode = modeResponse.data.mode;
       setSignalMode(currentMode);
 
-      // Analyze all stocks in watchlist
-      const analyses = await Promise.all(
-        watchlist.map(async (ticker) => {
-          try {
-            const response = await api.analyzeStock(ticker, 'SE', currentMode);
-
-            // Check if response has valid signal data
-            if (!response?.data?.signal) {
-              console.warn(`No signal data for ${ticker}`);
-              return null;
-            }
-
-            const signal = response.data.signal;
-
-            // Ensure all required fields exist
-            if (typeof signal.score === 'undefined' || !signal.action) {
-              console.warn(`Invalid signal data for ${ticker}:`, signal);
-              return null;
-            }
-
-            return {
-              ticker,
-              score: signal.score,
-              signal: signal.action,
-              strength: signal.strength || 'NEUTRAL',
-              technical_score: signal.technical_score || 0,
-              macro_score: signal.macro_score || 0,
-            };
-          } catch (error) {
-            console.error(`Error analyzing ${ticker}:`, error);
-            return null;
-          }
-        })
+      // Extract tickers from watchlist (handle both string arrays and object arrays)
+      const tickers = watchlist.map(item =>
+        typeof item === 'string' ? item : item.ticker
       );
+
+      console.log(`Scanning ${tickers.length} stocks in ${currentMode} mode...`);
+
+      // Process in batches of 5 to avoid timeouts (especially important for AI mode)
+      const batchSize = 5;
+      const analyses = [];
+
+      for (let i = 0; i < tickers.length; i += batchSize) {
+        const batch = tickers.slice(i, i + batchSize);
+        console.log(`Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(tickers.length / batchSize)}: ${batch.join(', ')}`);
+
+        const batchResults = await Promise.all(
+          batch.map(async (ticker) => {
+            try {
+              const response = await api.analyzeStock(ticker, 'SE', currentMode);
+
+              // Check if response has valid signal data
+              if (!response?.data?.signal) {
+                console.warn(`No signal data for ${ticker}`);
+                return null;
+              }
+
+              const signal = response.data.signal;
+
+              // Ensure all required fields exist
+              if (typeof signal.score === 'undefined' || !signal.action) {
+                console.warn(`Invalid signal data for ${ticker}:`, signal);
+                return null;
+              }
+
+              console.log(`✓ ${ticker}: ${signal.action} (${signal.score.toFixed(2)})`);
+
+              return {
+                ticker,
+                score: signal.score,
+                signal: signal.action,
+                strength: signal.strength || 'NEUTRAL',
+                technical_score: signal.technical_score || 0,
+                macro_score: signal.macro_score || 0,
+              };
+            } catch (error) {
+              console.error(`✗ Error analyzing ${ticker}:`, error.message);
+              return null;
+            }
+          })
+        );
+
+        analyses.push(...batchResults);
+      }
 
       // Filter out nulls and create rankings object
       const rankingsData = {};
@@ -269,6 +438,11 @@ export default function WatchlistScreen({ navigation }) {
   };
 
   const selectStock = async (stock) => {
+    if (activeList !== 'my-list') {
+      Alert.alert('Fel', 'Du kan bara lägga till aktier i "Min Lista"');
+      return;
+    }
+
     const ticker = stock.ticker;
 
     // Stäng dropdown och keyboard direkt
@@ -276,7 +450,11 @@ export default function WatchlistScreen({ navigation }) {
     setNewTicker('');
     setSearchResults([]);
 
-    if (watchlist.includes(ticker)) {
+    // Check if ticker already exists (handle both string arrays and object arrays)
+    const existingTickers = watchlist.map(item =>
+      typeof item === 'string' ? item : item.ticker
+    );
+    if (existingTickers.includes(ticker)) {
       Alert.alert('Finns redan', `${stock.name} finns redan i watchlist`);
       return;
     }
@@ -316,6 +494,11 @@ export default function WatchlistScreen({ navigation }) {
   };
 
   const removeFromWatchlist = (ticker) => {
+    if (activeList !== 'my-list') {
+      Alert.alert('Fel', 'Du kan inte ta bort aktier från OMX30-listan. Växla till "Min Lista" för att hantera dina egna aktier.');
+      return;
+    }
+
     Alert.alert(
       'Ta bort',
       `Vill du ta bort ${ticker} från watchlist?`,
@@ -345,6 +528,12 @@ export default function WatchlistScreen({ navigation }) {
   };
 
   const renderStockItem = ({ item }) => {
+    // Safety check - ensure item has ticker
+    if (!item || !item.ticker) {
+      console.warn('Invalid stock item:', item);
+      return null;
+    }
+
     const ranking = rankings[item.ticker];
     const hasRanking = showRanked && ranking;
 
@@ -454,8 +643,78 @@ export default function WatchlistScreen({ navigation }) {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background.primary }]} edges={['top']}>
-      {/* Add Stock Section */}
-      <View style={[styles.addSection, {
+      {/* List Selector */}
+      <View style={{
+        flexDirection: 'row',
+        paddingHorizontal: theme.spacing.base,
+        paddingVertical: theme.spacing.md,
+        backgroundColor: theme.colors.background.secondary,
+        borderBottomWidth: 1,
+        borderBottomColor: theme.colors.border.primary,
+        gap: theme.spacing.sm,
+      }}>
+        <TouchableOpacity
+          onPress={() => switchList('my-list')}
+          style={{
+            flex: 1,
+            paddingVertical: 12,
+            paddingHorizontal: 16,
+            borderRadius: 8,
+            backgroundColor: activeList === 'my-list'
+              ? theme.colors.primary
+              : theme.colors.background.tertiary,
+            borderWidth: 1.5,
+            borderColor: activeList === 'my-list'
+              ? theme.colors.primary
+              : theme.colors.border.primary,
+          }}
+          activeOpacity={0.7}
+        >
+          <Text style={{
+            color: activeList === 'my-list'
+              ? '#FFFFFF'
+              : theme.colors.text.primary,
+            fontSize: 15,
+            fontWeight: '700',
+            textAlign: 'center',
+          }}>
+            Min Lista
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => switchList('omx30')}
+          style={{
+            flex: 1,
+            paddingVertical: 12,
+            paddingHorizontal: 16,
+            borderRadius: 8,
+            backgroundColor: activeList === 'omx30'
+              ? theme.colors.primary
+              : theme.colors.background.tertiary,
+            borderWidth: 1.5,
+            borderColor: activeList === 'omx30'
+              ? theme.colors.primary
+              : theme.colors.border.primary,
+          }}
+          activeOpacity={0.7}
+        >
+          <Text style={{
+            color: activeList === 'omx30'
+              ? '#FFFFFF'
+              : theme.colors.text.primary,
+            fontSize: 15,
+            fontWeight: '700',
+            textAlign: 'center',
+          }}>
+            OMX30
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Add Stock Section - Only for "Min Lista" */}
+      {activeList === 'my-list' && (
+        <View style={[styles.addSection, {
         backgroundColor: theme.colors.background.secondary,
         borderBottomColor: theme.colors.border.primary,
         paddingHorizontal: theme.spacing.base,
@@ -484,9 +743,10 @@ export default function WatchlistScreen({ navigation }) {
           +
         </Button>
       </View>
+      )}
 
-      {/* Search Results Dropdown */}
-      {searchResults.length > 0 && newTicker.trim().length >= 2 && (
+      {/* Search Results Dropdown - Only for "Min Lista" */}
+      {activeList === 'my-list' && newTicker.trim().length >= 2 && (
         <View style={[styles.searchDropdown, {
           backgroundColor: theme.colors.background.secondary,
           borderColor: theme.colors.primary,
@@ -507,10 +767,23 @@ export default function WatchlistScreen({ navigation }) {
             borderTopRightRadius: 6,
           }}>
             <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '700' }}>
-              ✓ {searchResults.length} resultat funna
+              {isSearching ? 'Söker...' : searchResults.length > 0 ? `${searchResults.length} resultat funna` : 'Inga resultat'}
             </Text>
           </View>
-          {searchResults.map((stock, index) => {
+          {isSearching ? (
+            <View style={{ padding: 20, alignItems: 'center' }}>
+              <Text style={{ color: theme.colors.text.secondary, fontSize: 14 }}>
+                Söker efter "{newTicker}"...
+              </Text>
+            </View>
+          ) : searchResults.length === 0 ? (
+            <View style={{ padding: 20, alignItems: 'center' }}>
+              <Text style={{ color: theme.colors.text.secondary, fontSize: 14 }}>
+                Inga aktier hittades för "{newTicker}"
+              </Text>
+            </View>
+          ) : (
+            searchResults.map((stock, index) => {
             console.log('Rendering stock:', stock);
             return (
               <TouchableOpacity
@@ -572,7 +845,7 @@ export default function WatchlistScreen({ navigation }) {
                 </View>
               </TouchableOpacity>
             );
-          })}
+          }))}
         </View>
       )}
 
@@ -681,7 +954,7 @@ export default function WatchlistScreen({ navigation }) {
             : stocks
         }
         renderItem={renderStockItem}
-        keyExtractor={(item) => item.ticker}
+        keyExtractor={(item, index) => item?.ticker || `stock-${index}`}
         contentContainerStyle={{
           paddingHorizontal: theme.spacing.base,
           paddingBottom: theme.spacing.xl,

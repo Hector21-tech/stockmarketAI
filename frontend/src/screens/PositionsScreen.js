@@ -12,16 +12,21 @@ import {
   RefreshControl,
   Alert,
   ScrollView,
+  TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
-import { Card, PriceText } from '../components';
+import { Card, PriceText, AddPositionModal } from '../components';
 import { api } from '../api/client';
 
-export default function PositionsScreen() {
+export default function PositionsScreen({ navigation }) {
   const { theme } = useTheme();
   const [positions, setPositions] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [lastChecked, setLastChecked] = useState(null);
 
   useEffect(() => {
     fetchPositions();
@@ -44,6 +49,9 @@ export default function PositionsScreen() {
     try {
       const response = await api.checkPositions();
       const newNotifications = response.data.notifications || [];
+      const lastCheck = response.data.last_checked || {};
+
+      setLastChecked(lastCheck);
 
       if (newNotifications.length > 0) {
         setNotifications(newNotifications);
@@ -76,6 +84,26 @@ export default function PositionsScreen() {
       default:
         return theme.colors.text.tertiary;
     }
+  };
+
+  const getTimeAgo = (isoString) => {
+    if (!isoString) return 'Aldrig';
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+
+    if (diffMins < 1) return 'Just nu';
+    if (diffMins === 1) return '1 min sedan';
+    if (diffMins < 60) return `${diffMins} min sedan`;
+
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours === 1) return '1 timme sedan';
+    if (diffHours < 24) return `${diffHours} timmar sedan';
+
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays === 1) return '1 dag sedan';
+    return `${diffDays} dagar sedan`;
   };
 
   const renderPositionItem = ({ item }) => {
@@ -161,6 +189,51 @@ export default function PositionsScreen() {
           <PriceText value={item.stop_loss} size="sm" suffix=" SEK" />
         </View>
 
+        {/* Targets */}
+        {item.targets && (
+          <View style={[styles.targetsSection, {
+            backgroundColor: theme.colors.alpha(theme.colors.bullish, 0.1),
+            borderLeftColor: theme.colors.bullish,
+            marginTop: theme.spacing.md,
+          }]}>
+            <Text style={[styles.targetsTitle, { color: theme.colors.bullish }]}>
+              PRICE TARGETS (1/3 exits)
+            </Text>
+
+            <View style={styles.targetsGrid}>
+              <View style={styles.targetItem}>
+                <Text style={[styles.targetLabel, { color: theme.colors.text.secondary }]}>
+                  Target 1
+                </Text>
+                <PriceText value={item.targets.target_1.price} size="sm" suffix=" SEK" />
+                <Text style={[styles.gainText, { color: theme.colors.bullish }]}>
+                  +{item.targets.target_1.gain_percent.toFixed(1)}%
+                </Text>
+              </View>
+
+              <View style={styles.targetItem}>
+                <Text style={[styles.targetLabel, { color: theme.colors.text.secondary }]}>
+                  Target 2
+                </Text>
+                <PriceText value={item.targets.target_2.price} size="sm" suffix=" SEK" />
+                <Text style={[styles.gainText, { color: theme.colors.bullish }]}>
+                  +{item.targets.target_2.gain_percent.toFixed(1)}%
+                </Text>
+              </View>
+
+              <View style={styles.targetItem}>
+                <Text style={[styles.targetLabel, { color: theme.colors.text.secondary }]}>
+                  Target 3
+                </Text>
+                <PriceText value={item.targets.target_3.price} size="sm" suffix=" SEK" />
+                <Text style={[styles.gainText, { color: theme.colors.bullish }]}>
+                  +{item.targets.target_3.gain_percent.toFixed(1)}%
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* Exits */}
         {item.exits && item.exits.length > 0 && (
           <View style={[styles.exitsSection, {
@@ -223,7 +296,114 @@ export default function PositionsScreen() {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background.primary }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background.primary }]} edges={['top']}>
+      {/* Header with Analytics Button (samma stil som Watchlist) */}
+      <View style={{
+        flexDirection: 'row',
+        paddingHorizontal: theme.spacing.base,
+        paddingVertical: theme.spacing.md,
+        backgroundColor: theme.colors.background.secondary,
+        borderBottomWidth: 1,
+        borderBottomColor: theme.colors.border.primary,
+        gap: theme.spacing.sm,
+      }}>
+        <View
+          style={{
+            flex: 2,
+            paddingVertical: 12,
+            paddingHorizontal: 16,
+            borderRadius: 8,
+            backgroundColor: theme.colors.background.tertiary,
+            borderWidth: 1.5,
+            borderColor: theme.colors.border.primary,
+            justifyContent: 'center',
+          }}
+        >
+          <Text style={{
+            color: theme.colors.text.primary,
+            fontSize: 15,
+            fontWeight: '700',
+            textAlign: 'center',
+          }}>
+            Positioner
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          onPress={() => navigation.navigate('Analytics')}
+          style={{
+            flex: 1,
+            paddingVertical: 12,
+            paddingHorizontal: 16,
+            borderRadius: 8,
+            backgroundColor: theme.colors.alpha(theme.colors.primary, 0.1),
+            borderWidth: 1.5,
+            borderColor: theme.colors.primary,
+          }}
+          activeOpacity={0.7}
+        >
+          <Text style={{
+            color: theme.colors.primary,
+            fontSize: 15,
+            fontWeight: '700',
+            textAlign: 'center',
+          }}>
+            Analytics
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={checkPositions}
+          style={{
+            paddingVertical: 12,
+            paddingHorizontal: 16,
+            borderRadius: 8,
+            backgroundColor: theme.colors.alpha(theme.colors.primary, 0.1),
+            borderWidth: 1.5,
+            borderColor: theme.colors.primary,
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="refresh" size={20} color={theme.colors.primary} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => setModalVisible(true)}
+          style={{
+            paddingVertical: 12,
+            paddingHorizontal: 16,
+            borderRadius: 8,
+            backgroundColor: theme.colors.bullish,
+            borderWidth: 1.5,
+            borderColor: theme.colors.bullish,
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="add" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Last Checked Indicator */}
+      {lastChecked && (lastChecked.SE || lastChecked.US) && (
+        <View style={{
+          paddingHorizontal: theme.spacing.base,
+          paddingVertical: theme.spacing.xs,
+          backgroundColor: theme.colors.background.secondary,
+        }}>
+          <Text style={{
+            fontSize: 11,
+            color: theme.colors.text.tertiary,
+            textAlign: 'center',
+          }}>
+            Senast kollad: {lastChecked.SE ? `SE ${getTimeAgo(lastChecked.SE)}` : ''}{lastChecked.SE && lastChecked.US ? ' • ' : ''}{lastChecked.US ? `US ${getTimeAgo(lastChecked.US)}` : ''}
+          </Text>
+        </View>
+      )}
+
       {/* Alerts Section */}
       {notifications.length > 0 && (
         <View style={[styles.notificationsSection, {
@@ -272,7 +452,18 @@ export default function PositionsScreen() {
           </Card>
         }
       />
-    </View>
+
+      {/* Add Position Modal */}
+      <AddPositionModal
+        visible={modalVisible}
+        onClose={() => {
+          setModalVisible(false);
+          fetchPositions(); // Refresh positions after adding
+        }}
+        mode="manual"
+        signalData={null}
+      />
+    </SafeAreaView>
   );
 }
 
@@ -391,6 +582,36 @@ const styles = StyleSheet.create({
   },
   exitType: {
     fontSize: 11,
+    marginTop: 2,
+  },
+  targetsSection: {
+    padding: 12,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+  },
+  targetsTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginBottom: 12,
+  },
+  targetsGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  targetItem: {
+    flex: 1,
+  },
+  targetLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  gainText: {
+    fontSize: 11,
+    fontWeight: '600',
     marginTop: 2,
   },
   emptyText: {

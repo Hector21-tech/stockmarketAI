@@ -13,9 +13,11 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  TouchableOpacity,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
-import { Card, PriceText } from '../components';
+import { Card, PriceText, AddPositionModal } from '../components';
 import { api } from '../api/client';
 
 export default function SignalsScreen() {
@@ -33,6 +35,8 @@ export default function SignalsScreen() {
     'SKF-B',
     'TELIA',
   ]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedSignal, setSelectedSignal] = useState(null);
 
   useEffect(() => {
     loadSignalMode();
@@ -210,6 +214,25 @@ export default function SignalsScreen() {
             </View>
           ))}
         </View>
+
+        {/* Add to Portfolio Button */}
+        <TouchableOpacity
+          onPress={() => {
+            setSelectedSignal(item);
+            setModalVisible(true);
+          }}
+          style={[styles.addButton, {
+            backgroundColor: theme.colors.alpha(theme.colors.primary, 0.1),
+            borderColor: theme.colors.primary,
+            marginTop: theme.spacing.md,
+          }]}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="briefcase-outline" size={20} color={theme.colors.primary} />
+          <Text style={[styles.addButtonText, { color: theme.colors.primary }]}>
+            Add to Portfolio
+          </Text>
+        </TouchableOpacity>
       </Card>
     );
   };
@@ -291,6 +314,17 @@ export default function SignalsScreen() {
             </Text>
           </Card>
         }
+      />
+
+      {/* Add Position Modal */}
+      <AddPositionModal
+        visible={modalVisible}
+        onClose={() => {
+          setModalVisible(false);
+          setSelectedSignal(null);
+        }}
+        mode="from-signal"
+        signalData={selectedSignal}
       />
     </View>
   );
@@ -436,5 +470,19 @@ const styles = StyleSheet.create({
   },
   emptySubtext: {
     fontSize: 14,
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    gap: 8,
+  },
+  addButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

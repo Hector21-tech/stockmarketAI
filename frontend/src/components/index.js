@@ -6,3 +6,4 @@
 export { default as Button } from './Button';
 export { default as Card } from './Card';
 export { default as PriceText } from './PriceText';
+export { default as AddPositionModal } from './AddPositionModal';

@@ -13,11 +13,12 @@ import {
   Dimensions,
   TouchableOpacity,
   Alert,
+  Modal,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LineChart, BarChart } from 'react-native-gifted-charts';
 import { useTheme } from '../theme/ThemeContext';
-import { Card, PriceText, Button } from '../components';
+import { Card, PriceText, Button, AddPositionModal } from '../components';
 import { api } from '../api/client';
 
 const { width } = Dimensions.get('window');
@@ -38,6 +39,9 @@ export default function StockDetailScreen({ route, navigation }) {
   const [bottomIndicator, setBottomIndicator] = useState('volume'); // 'volume' | 'rsi' | 'macd' | 'stochastic' | 'none'
   const [isInWatchlist, setIsInWatchlist] = useState(false);
   const [signalMode, setSignalMode] = useState('conservative');
+  const [analysisModalVisible, setAnalysisModalVisible] = useState(false);
+  const [analysisData, setAnalysisData] = useState(null);
+  const [positionModalVisible, setPositionModalVisible] = useState(false);
 
   const periods = [
     { label: '1V', value: '5d' },
@@ -238,6 +242,10 @@ export default function StockDetailScreen({ route, navigation }) {
 
   const handleAnalyze = async () => {
     try {
+      // Re-load signal mode before analyzing to ensure it's fresh
+      await loadSignalMode();
+
+      console.log('Analyzing with mode:', signalMode);
       const response = await api.analyzeStock(ticker, market, signalMode);
       const data = response.data;
 
@@ -250,78 +258,90 @@ export default function StockDetailScreen({ route, navigation }) {
       // Build comprehensive analysis message
       const techScore = signal.technical_score ?? 0;
       const macroScore = signal.macro_score ?? 5;
+      const adjustedMacroScore = signal.adjusted_macro_score ?? macroScore;
       const aiScore = signal.ai_score ?? 0;
       const totalScore = signal.score ?? 0;
+      const seasonality = signal.seasonality ?? null;
 
       // Dynamisk formula baserad på mode
-      let techWeight, macroWeight, aiWeight, modeIcon, modeName, formulaStr;
+      let techWeight, macroWeight, aiWeight, modeName, formulaStr;
 
       if (signalMode === 'ai-hybrid') {
         techWeight = '0.6';
         aiWeight = '0.3';
         macroWeight = '0.1';
-        modeIcon = '🤖';
         modeName = 'AI-HYBRID';
         formulaStr = `(Tech*${techWeight}) + (AI*${aiWeight}) + (Macro*${macroWeight})`;
       } else if (signalMode === 'aggressive') {
         techWeight = '0.85';
         macroWeight = '0.15';
-        modeIcon = '⚡';
         modeName = 'AGGRESSIVE';
         formulaStr = `(Tech*${techWeight}) + (Macro*${macroWeight})`;
       } else {
         techWeight = '0.7';
         macroWeight = '0.3';
-        modeIcon = '🛡️';
         modeName = 'CONSERVATIVE';
         formulaStr = `(Tech*${techWeight}) + (Macro*${macroWeight})`;
       }
 
+      // Add seasonality modifier to score breakdown if present
+      const seasonalityLine = seasonality && seasonality.modifier !== 0
+        ? `   Seasonal: ${seasonality.modifier > 0 ? '+' : ''}${seasonality.modifier.toFixed(2)} (${seasonality.raw_return > 0 ? '+' : ''}${seasonality.raw_return.toFixed(1)}% hist.)`
+        : '';
+
       const scoreBreakdown = signalMode === 'ai-hybrid'
         ? `   Technical: ${techScore}/10
    AI Score: ${aiScore}/10
-   Macro: ${macroScore}/10`
+   Macro: ${macroScore}/10 → ${adjustedMacroScore.toFixed(1)}/10${seasonalityLine ? '\n' + seasonalityLine : ''}`
         : `   Technical: ${techScore}/10
-   Macro: ${macroScore}/10`;
+   Macro: ${macroScore}/10 → ${adjustedMacroScore.toFixed(1)}/10${seasonalityLine ? '\n' + seasonalityLine : ''}`;
 
       const message = `
-🎯 TOTAL SCORE: ${totalScore}/10 — ${signal.strength}
+═══ TOTAL SCORE: ${totalScore}/10 — ${signal.strength} ═══
 ${scoreBreakdown}
    Formula: ${formulaStr}
-   Mode: ${modeIcon} ${modeName}
+   Mode: ${modeName}
 
-📊 SIGNAL: ${signal.action}
+─── SIGNAL: ${signal.action} ───
 ${signal.summary}
 
-💰 TRADE SETUP:
-Entry: ${trade.entry ? trade.entry.toFixed(2) : 'N/A'} SEK
-Target 1: ${trade.targets?.target_1?.price?.toFixed(2) ?? 'N/A'} SEK (+${trade.targets?.target_1?.gain_percent ?? 0}%)
-Target 2: ${trade.targets?.target_2?.price?.toFixed(2) ?? 'N/A'} SEK (+${trade.targets?.target_2?.gain_percent ?? 0}%)
-Stop Loss: ${trade.stop_loss?.toFixed(2) ?? 'N/A'} SEK
-R/R: ${trade.risk_reward?.toFixed(2) ?? 'N/A'}:1
+─── TRADE SETUP ───
+▪ Entry: ${trade.entry ? trade.entry.toFixed(2) : 'N/A'} SEK
+▪ Target 1: ${trade.targets?.target_1?.price?.toFixed(2) ?? 'N/A'} SEK (+${trade.targets?.target_1?.gain_percent ?? 0}%)
+▪ Target 2: ${trade.targets?.target_2?.price?.toFixed(2) ?? 'N/A'} SEK (+${trade.targets?.target_2?.gain_percent ?? 0}%)
+▪ Stop Loss: ${trade.stop_loss?.toFixed(2) ?? 'N/A'} SEK
+▪ Risk/Reward: ${trade.risk_reward?.toFixed(2) ?? 'N/A'}:1
 
-📈 TEKNISK ANALYS:
-Trend: ${analysis.trend.toUpperCase()} (Pris: ${analysis.price.toFixed(2)} / EMA20: ${analysis.ema_20.toFixed(2)})
-RSI: ${analysis.rsi.toFixed(1)} — ${analysis.rsi_status} (${analysis.rsi_divergence} divergence)
-MACD: ${analysis.macd.crossover} crossover
-Stochastic: %K=${analysis.stochastic.k.toFixed(1)} — ${analysis.stochastic.status}
-Volym: ${(analysis.volume / 1000000).toFixed(2)}M
+─── TEKNISK ANALYS ───
+▪ Trend: ${analysis.trend.toUpperCase()} (${analysis.price.toFixed(2)} vs EMA20: ${analysis.ema_20.toFixed(2)})
+▪ RSI: ${analysis.rsi.toFixed(1)} — ${analysis.rsi_status} (${analysis.rsi_divergence} div.)
+▪ MACD: ${analysis.macd.crossover} crossover
+▪ Stochastic: %K=${analysis.stochastic.k.toFixed(1)} — ${analysis.stochastic.status}
+▪ Volym: ${(analysis.volume / 1000000).toFixed(2)}M
 
-🌍 MAKRO CONTEXT:
-Regime: ${macro.regime?.toUpperCase() ?? 'Unknown'}
-VIX: ${macro.vix?.toFixed(2) ?? 'N/A'} (${macro.fear_greed ?? 'N/A'})
-Macro Score: ${macro.macro_score ?? 5}/10 — ${macro.macro_classification ?? 'Unknown'}
+─── MAKRO CONTEXT ───
+▪ Regime: ${macro.regime?.toUpperCase() ?? 'Unknown'}
+▪ VIX: ${macro.vix?.toFixed(2) ?? 'N/A'} (${macro.fear_greed ?? 'N/A'})
+▪ Macro Score: ${macro.macro_score ?? 5}/10 — ${macro.macro_classification ?? 'Unknown'}
+${seasonality ? `
+─── SEASONALITY ───
+${seasonality.ai_rationale}
+Confidence: ${seasonality.confidence.toUpperCase()}${seasonality.gated ? `\n! ${seasonality.gate_reason}` : ''}` : ''}
 
-✅ ANLEDNINGAR:
+─── RATIONALE ───
 ${signal.reasons.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 
-⏱ TIDSHORISONT: ${trade.risk_reward >= 2 ? 'Medellång (2-4 veckor)' : 'Kort (1-2 veckor)'}
+─── TIDSHORISONT ───
+${trade.risk_reward >= 2 ? 'Medellång (2-4 veckor)' : 'Kort (1-2 veckor)'}
       `.trim();
 
-      Alert.alert(`${ticker} — ${signal.action} Signal`, message, [
-        { text: 'Lägg till Position', onPress: handleAddPosition },
-        { text: 'Stäng', style: 'cancel' }
-      ]);
+      // Show custom modal instead of Alert
+      setAnalysisData({
+        ticker,
+        action: signal.action,
+        message
+      });
+      setAnalysisModalVisible(true);
     } catch (error) {
       console.error('Error analyzing stock:', error);
       Alert.alert('Fel', 'Kunde inte analysera aktie');
@@ -329,9 +349,21 @@ ${signal.reasons.map((r, i) => `${i + 1}. ${r}`).join('\n')}
   };
 
   const handleAddPosition = () => {
-    Alert.alert('Lägg till Position', 'Position modal kommer snart!', [
-      { text: 'OK' }
-    ]);
+    // Create signal data structure from current stock info and analysis
+    const signalData = analysisData ? {
+      ticker: ticker,
+      name: stockInfo?.name || ticker,
+      price: currentPrice,
+      trade_setup: analysisData.trade_setup,
+      analysis: analysisData.analysis,
+    } : {
+      ticker: ticker,
+      name: stockInfo?.name || ticker,
+      price: currentPrice,
+      trade_setup: null,
+    };
+
+    setPositionModalVisible(true);
   };
 
   if (loading) {
@@ -908,6 +940,76 @@ ${signal.reasons.map((r, i) => `${i + 1}. ${r}`).join('\n')}
           )}
         </Card>
       )}
+
+      {/* Analysis Modal - Opaque Background */}
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={analysisModalVisible}
+        onRequestClose={() => setAnalysisModalVisible(false)}
+      >
+        <View style={[styles.modalContainer, { backgroundColor: theme.colors.background }]}>
+          <ScrollView style={styles.modalScroll}>
+            {analysisData && (
+              <>
+                <View style={[styles.modalHeader, { borderBottomColor: theme.colors.border }]}>
+                  <Text style={[styles.modalTitle, { color: theme.colors.text.primary }]}>
+                    {analysisData.ticker} — {analysisData.action} Signal
+                  </Text>
+                </View>
+
+                <View style={styles.modalContent}>
+                  <Text style={[styles.modalMessage, { color: theme.colors.text.primary }]}>
+                    {analysisData.message}
+                  </Text>
+                </View>
+              </>
+            )}
+          </ScrollView>
+
+          <View style={[styles.modalButtons, { borderTopColor: theme.colors.border, backgroundColor: theme.colors.background }]}>
+            <TouchableOpacity
+              style={[styles.modalButton, styles.modalButtonSecondary, { borderColor: theme.colors.border }]}
+              onPress={() => {
+                setAnalysisModalVisible(false);
+                handleAddPosition();
+              }}
+            >
+              <Text style={[styles.modalButtonText, { color: theme.colors.primary }]}>
+                Lägg till Position
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.modalButton, styles.modalButtonPrimary, { backgroundColor: theme.colors.primary }]}
+              onPress={() => setAnalysisModalVisible(false)}
+            >
+              <Text style={[styles.modalButtonText, { color: '#FFFFFF' }]}>
+                Stäng
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Add Position Modal */}
+      <AddPositionModal
+        visible={positionModalVisible}
+        onClose={() => setPositionModalVisible(false)}
+        mode={analysisData ? "from-signal" : "manual"}
+        signalData={analysisData ? {
+          ticker: ticker,
+          name: stockInfo?.name || ticker,
+          price: currentPrice,
+          trade_setup: analysisData.trade_setup,
+          analysis: analysisData.analysis,
+        } : {
+          ticker: ticker,
+          name: stockInfo?.name || ticker,
+          price: currentPrice,
+          trade_setup: null,
+        }}
+      />
     </ScrollView>
   );
 }
@@ -1008,5 +1110,52 @@ const styles = StyleSheet.create({
   actionButtons: {
     flexDirection: 'row',
     marginTop: 16,
+  },
+  // Modal styles
+  modalContainer: {
+    flex: 1,
+  },
+  modalScroll: {
+    flex: 1,
+  },
+  modalHeader: {
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  modalContent: {
+    padding: 20,
+  },
+  modalMessage: {
+    fontSize: 13,
+    lineHeight: 20,
+    fontFamily: 'monospace',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 16,
+    borderTopWidth: 1,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalButtonPrimary: {
+    // backgroundColor set dynamically
+  },
+  modalButtonSecondary: {
+    borderWidth: 1,
+  },
+  modalButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
