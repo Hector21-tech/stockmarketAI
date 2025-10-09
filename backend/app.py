@@ -657,6 +657,50 @@ def get_strategy():
         })
 
 
+# ============ BACKTESTER ENDPOINT ============
+
+@app.route('/api/backtest', methods=['POST'])
+def run_backtest():
+    """Run strategy backtest"""
+    from backtester import Backtester
+
+    data = request.json
+    ticker = data.get('ticker')
+    market = data.get('market', 'SE')
+    start_date = data.get('start_date')  # YYYY-MM-DD or None
+    end_date = data.get('end_date')  # YYYY-MM-DD or None
+    initial_capital = data.get('initial_capital', 100000)
+    mode = data.get('mode', 'conservative')
+
+    if not ticker:
+        return jsonify({'error': 'ticker required'}), 400
+
+    try:
+        # Validate mode
+        if not validate_mode(mode):
+            return jsonify({'error': f'Invalid mode: {mode}'}), 400
+
+        # Run backtest
+        backtester = Backtester(
+            ticker=ticker,
+            market=market,
+            start_date=start_date,
+            end_date=end_date,
+            initial_capital=initial_capital,
+            mode=mode
+        )
+
+        results = backtester.run()
+
+        return jsonify(results)
+
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'message': 'Backtest failed'
+        }), 500
+
+
 # ============ NOTIFICATION ENDPOINTS ============
 
 @app.route('/api/notifications/register', methods=['POST'])
@@ -891,6 +935,7 @@ if __name__ == '__main__':
     print("  GET  /api/macro")
     print("  GET  /api/correlations/<ticker>?market=SE")
     print("  GET  /api/strategy")
+    print("  POST /api/backtest")
     print("  POST /api/notifications/register")
     print("  POST /api/notifications/unregister")
     print("  POST /api/notifications/send")
