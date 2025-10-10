@@ -11,12 +11,14 @@ from technical_analysis import TechnicalAnalyzer
 from signal_modes import get_mode_config
 from confidence_calculator import calculate_confidence
 from macro_data import MacroDataFetcher
+from trailing_stop_manager import TrailingStopManager
 
 
 class Backtester:
     def __init__(self, ticker, market='SE', start_date=None, end_date=None,
                  initial_capital=100000, mode='conservative',
-                 slippage=0.001, commission=0.0025, use_trailing_stop=True):
+                 slippage=0.001, commission=0.0025, use_trailing_stop=True,
+                 disable_targets=False, targets_to_use=[1, 2, 3]):
         """
         Initialize backtester
 
@@ -30,6 +32,8 @@ class Backtester:
             slippage: Price slippage per trade (0.1% default)
             commission: Commission per trade (0.25% default)
             use_trailing_stop: Enable Phase 4 ATR-based trailing stop (default True)
+            disable_targets: Disable ALL 1/3 exit targets (Phase 2B Test A)
+            targets_to_use: Which targets to use [1,2,3] = all, [1] = only T1, [] = none (Phase 2B Test A2)
         """
         self.ticker = ticker
         self.market = market
@@ -38,6 +42,8 @@ class Backtester:
         self.slippage = slippage
         self.commission = commission
         self.use_trailing_stop = use_trailing_stop  # Phase 4 feature flag
+        self.disable_targets = disable_targets  # Phase 2B Test A: Remove profit targets
+        self.targets_to_use = targets_to_use  # Phase 2B Test A2: Selective targets
 
         # Setup dates
         self.end_date = datetime.strptime(end_date, '%Y-%m-%d') if end_date else datetime.now()
@@ -48,6 +54,7 @@ class Backtester:
         self.analyzer = TechnicalAnalyzer()
         self.mode_config = get_mode_config(mode)
         self.macro_data = MacroDataFetcher()
+        self.trailing_manager = TrailingStopManager(atr_multiplier=3.0, atr_period=22)  # Chandelier Exit
 
         # State
         self.capital = initial_capital
@@ -245,14 +252,31 @@ class Backtester:
             if score < 1:  # Minimum score to enter (very permissive for demo)
                 return
 
-            # PHASE 2 FILTERS: Volume and ADX (prevent low-quality entries)
+            # PHASE 1 FILTERS: Trend Quality (ADX + MA alignment + MA slope)
             # Must have minimum volume (avoid thin trading)
             if volume_ratio < 0.8:  # Below 80% of average = too thin
                 return
 
-            # Must have some trend (avoid choppy markets)
+            # Must have trend strength (ADX > 15)
             if current_adx is not None and current_adx < 15:  # Too choppy
                 return
+
+            # Calculate 50MA and 200MA for trend filter
+            ma50 = data_slice['Close'].rolling(window=50).mean().iloc[-1] if len(data_slice) >= 50 else None
+            ma200 = data_slice['Close'].rolling(window=200).mean().iloc[-1] if len(data_slice) >= 200 else None
+
+            # Price must be above 50MA AND 200MA (bullish trend)
+            if ma50 is not None and price < ma50:
+                return
+            if ma200 is not None and price < ma200:
+                return
+
+            # 20MA slope must be positive (short-term trend up)
+            if len(data_slice) >= 25:
+                ma20_5d_ago = data_slice['Close'].rolling(window=20).mean().iloc[-6]
+                ma20_slope = (ma20 - ma20_5d_ago) / ma20_5d_ago
+                if ma20_slope < 0:  # Negative slope = downtrend
+                    return
 
             # CONFIDENCE CALCULATION (MarketMate Risk-Adjusted)
             # Convert technical score to base_score (-10 to +10 range)
@@ -297,11 +321,13 @@ class Backtester:
             # Reduce capital by commission percentage to ensure total cost doesn't exceed capital
             buyable_capital = self.capital / (1 + self.commission)
 
-            # CONFIDENCE-BASED POSITION SIZING
+            # PHASE 1 CONFIDENCE-BASED POSITION SIZING
             if recommended_size == 'quarter':
                 buyable_capital *= 0.25  # 25% position
             elif recommended_size == 'half':
                 buyable_capital *= 0.5   # 50% position
+            elif recommended_size == 'three_quarters':
+                buyable_capital *= 0.75  # 75% position (NEW)
             # else: full position (100%)
 
             shares = int(buyable_capital / entry_price)
@@ -332,16 +358,16 @@ class Backtester:
             target_2_pct = base_target_2 * target_mult
             target_3_pct = base_target_3 * target_mult
 
-            # Phase 4: ATR-based initial stop (Stage 1)
+            # Phase 1: ATR-based initial stop (2×ATR)
             if self.use_trailing_stop:
-                # Initial trail = max(1.5×ATR, 1.2% of entry)
-                atr_stop_distance = 1.5 * current_atr
+                # Initial stop = max(2×ATR, 1.2% of entry)
+                atr_stop_distance = 2.0 * current_atr  # Changed from 1.5 to 2.0
                 percent_stop_distance = entry_price * 0.012  # 1.2%
                 stop_distance = max(atr_stop_distance, percent_stop_distance)
                 initial_stop = entry_price - stop_distance
-                initial_risk = stop_distance  # Save initial risk for 1.5R calculation
+                initial_risk = stop_distance  # Save initial risk for R-multiple calculation
             else:
-                # Phase 3: Fixed percentage stop
+                # Fallback: Fixed percentage stop
                 initial_stop = entry_price * (1 - stop_pct / 100)
                 initial_risk = entry_price * (stop_pct / 100)
 
@@ -352,9 +378,8 @@ class Backtester:
                 'shares': shares,
                 'initial_shares': shares,
                 'stop_loss': initial_stop,
-                'initial_risk': initial_risk,  # For 1.5R check
-                'atr': current_atr,  # Store ATR for dynamic trailing
-                'stage': 1,  # Trailing stop stage (1 or 2)
+                'initial_risk': initial_risk,  # For R-multiple calculation
+                'atr': current_atr,  # Store ATR for Chandelier Exit
                 'target_1': entry_price * (1 + target_1_pct),
                 'target_2': entry_price * (1 + target_2_pct),
                 'target_3': entry_price * (1 + target_3_pct),
@@ -363,7 +388,7 @@ class Backtester:
                 'confidence': confidence_pct,
                 'position_size': recommended_size,
                 'risk_factors': risk_factors,
-                'highest_price': entry_price  # Track highest price for trailing stop
+                'highest_price': entry_price  # Track highest price for Chandelier Exit
             }
 
             self.capital -= cost
@@ -378,44 +403,25 @@ class Backtester:
             print(f"Error checking entry: {e}")
 
     def _check_exits(self, date, price, row):
-        """Check if any exit conditions are met (Phase 4: 2-stage trailing stop)"""
+        """Check if any exit conditions are met (Phase 1: Chandelier Exit trailing stop)"""
         if not self.position:
             return
 
-        # Phase 4: Update trailing stop dynamically
+        # Phase 1: Update trailing stop using Chandelier Exit
         if self.use_trailing_stop:
-            # Track highest price for trailing calculation
+            # Track highest price for Chandelier calculation
             if price > self.position['highest_price']:
                 self.position['highest_price'] = price
 
-            entry_price = self.position['entry_price']
-            highest_price = self.position['highest_price']
-            initial_risk = self.position['initial_risk']
-            atr = self.position['atr']
-            current_stage = self.position['stage']
+            # Get current ATR (using stored ATR from entry)
+            current_atr = self.position['atr']
 
-            # Calculate current profit in R (risk multiples)
-            current_profit = price - entry_price
-            r_multiple = current_profit / initial_risk if initial_risk > 0 else 0
-
-            # Stage 2 activation: When profit ≥ 1.5R, tighten trailing stop
-            if r_multiple >= 1.5 and current_stage == 1:
-                self.position['stage'] = 2
-                # print(f"  [Phase 4] Trailing stop upgraded to Stage 2 at {r_multiple:.2f}R profit")
-
-            # Calculate trailing stop based on stage
-            if self.position['stage'] == 2:
-                # Stage 2: Tight trail = 2.2×ATR under highest price
-                trail_distance = 2.2 * atr
-                new_stop = highest_price - trail_distance
-            else:
-                # Stage 1: Initial trail = max(1.5×ATR, 1.2% of entry)
-                trail_distance = max(1.5 * atr, entry_price * 0.012)
-                new_stop = price - trail_distance  # Trail current price, not highest
-
-            # Only raise stop, never lower it
-            if new_stop > self.position['stop_loss']:
-                self.position['stop_loss'] = new_stop
+            # Update stop using Chandelier Exit manager
+            self.position = self.trailing_manager.update_stop(
+                position=self.position,
+                current_price=price,
+                current_atr=current_atr
+            )
 
         shares_to_sell = 0
         exit_reason = None
@@ -424,26 +430,28 @@ class Backtester:
         # Check stop loss (sells all remaining shares)
         if price <= self.position['stop_loss']:
             shares_to_sell = self.position['shares']
-            exit_reason = 'STOP_LOSS' if self.position['stage'] == 1 else 'TRAILING_STOP'
+            exit_reason = 'CHANDELIER_STOP' if self.use_trailing_stop else 'STOP_LOSS'
             exit_price = price * (1 - self.slippage)  # Worse price on stop loss
 
-        # Check Target 3 (sell final 1/3)
-        elif price >= self.position['target_3'] and self.position['shares'] > 0:
-            shares_to_sell = self.position['shares']  # Sell all remaining
-            exit_reason = 'TARGET_3'
-            exit_price = price * (1 - self.slippage)
+        # Phase 2B Test A/A2: Optional 1/3 exit targets (can be disabled or selective)
+        elif not self.disable_targets:
+            # Check Target 3 (sell final 1/3) - only if 3 in targets_to_use
+            if 3 in self.targets_to_use and price >= self.position['target_3'] and self.position['shares'] > 0:
+                shares_to_sell = self.position['shares']  # Sell all remaining
+                exit_reason = 'TARGET_3'
+                exit_price = price * (1 - self.slippage)
 
-        # Check Target 2 (sell 1/3)
-        elif price >= self.position['target_2'] and self.position['shares'] >= (self.position['initial_shares'] * 2 / 3):
-            shares_to_sell = int(self.position['initial_shares'] / 3)
-            exit_reason = 'TARGET_2'
-            exit_price = price * (1 - self.slippage)
+            # Check Target 2 (sell 1/3) - only if 2 in targets_to_use
+            elif 2 in self.targets_to_use and price >= self.position['target_2'] and self.position['shares'] >= (self.position['initial_shares'] * 2 / 3):
+                shares_to_sell = int(self.position['initial_shares'] / 3)
+                exit_reason = 'TARGET_2'
+                exit_price = price * (1 - self.slippage)
 
-        # Check Target 1 (sell 1/3)
-        elif price >= self.position['target_1'] and self.position['shares'] == self.position['initial_shares']:
-            shares_to_sell = int(self.position['initial_shares'] / 3)
-            exit_reason = 'TARGET_1'
-            exit_price = price * (1 - self.slippage)
+            # Check Target 1 (sell 1/3) - only if 1 in targets_to_use
+            elif 1 in self.targets_to_use and price >= self.position['target_1'] and self.position['shares'] == self.position['initial_shares']:
+                shares_to_sell = int(self.position['initial_shares'] / 3)
+                exit_reason = 'TARGET_1'
+                exit_price = price * (1 - self.slippage)
 
         if shares_to_sell > 0:
             self._execute_exit(date, exit_price, shares_to_sell, exit_reason)
