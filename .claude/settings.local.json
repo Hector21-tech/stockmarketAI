@@ -48,7 +48,13 @@
       "Bash(npx react-native:*)",
       "Bash(curl -s http://192.168.1.46:5000/api/health)",
       "Bash(tasklist)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(set GEMINI_API_KEY=AIzaSyD8c6ZHE0kA7AI9CKPXhIfLWmdca6laUPA)",
+      "Bash(time curl:*)",
+      "Bash(tee:*)",
+      "Bash(pip show:*)",
+      "Bash(tasklist:*)",
+      "Bash(git log:*)"
     ],
     "deny": [],
     "ask": []

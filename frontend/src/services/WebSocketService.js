@@ -15,8 +15,13 @@ class WebSocketService {
     };
   }
 
-  // Connect to WebSocket server
+  // Connect to WebSocket server (DISABLED - not implemented yet)
   connect() {
+    console.log('WebSocket disabled (feature not implemented yet)');
+    return;
+
+    // TODO: Implement WebSocket server in backend first
+    /*
     if (this.socket && this.connected) {
       console.log('WebSocket already connected');
       return;
@@ -33,6 +38,7 @@ class WebSocketService {
     });
 
     this.setupEventHandlers();
+    */
   }
 
   // Setup event handlers
@@ -142,11 +148,10 @@ class WebSocketService {
     }
   }
 
-  // Reconnect manually
+  // Reconnect manually (DISABLED)
   reconnect() {
-    this.disconnect();
-    this.reconnectAttempts = 0;
-    this.connect();
+    console.log('WebSocket reconnect disabled (feature not implemented yet)');
+    return;
   }
 }
 

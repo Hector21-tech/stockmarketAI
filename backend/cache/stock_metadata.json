@@ -1,0 +1,314 @@
+{
+  "VOLVO-B_SE": {
+    "ticker": "VOLVO-B",
+    "name": "AB Volvo (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "VOLV-B.ST",
+    "cached_at": "2025-10-08T22:38:49.708822"
+  },
+  "HM-B_SE": {
+    "ticker": "HM-B",
+    "name": "H & M Hennes & Mauritz AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "HM-B.ST",
+    "cached_at": "2025-10-08T22:38:50.046757"
+  },
+  "ERIC-B_SE": {
+    "ticker": "ERIC-B",
+    "name": "Telefonaktiebolaget LM Ericsson (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "ERIC-B.ST",
+    "cached_at": "2025-10-08T22:38:50.379502"
+  },
+  "ABB_SE": {
+    "ticker": "ABB",
+    "name": "ABB Ltd",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "ABB.ST",
+    "cached_at": "2025-10-08T22:38:50.723293"
+  },
+  "AZN_SE": {
+    "ticker": "AZN",
+    "name": "AstraZeneca PLC",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "AZN.ST",
+    "cached_at": "2025-10-08T22:38:50.944354"
+  },
+  "INVE-B_SE": {
+    "ticker": "INVE-B",
+    "name": "Investor AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "INVE-B.ST",
+    "cached_at": "2025-10-08T22:38:51.283623"
+  },
+  "SEB-A_SE": {
+    "ticker": "SEB-A",
+    "name": "Skandinaviska Enskilda Banken AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "SEB-A.ST",
+    "cached_at": "2025-10-08T22:38:51.622971"
+  },
+  "SWED-A_SE": {
+    "ticker": "SWED-A",
+    "name": "Swedbank AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "SWED-A.ST",
+    "cached_at": "2025-10-08T22:38:51.952029"
+  },
+  "ATCO-A_SE": {
+    "ticker": "ATCO-A",
+    "name": "Atlas Copco AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "ATCO-A.ST",
+    "cached_at": "2025-10-08T22:38:52.302254"
+  },
+  "ATCO-B_SE": {
+    "ticker": "ATCO-B",
+    "name": "Atlas Copco AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "ATCO-B.ST",
+    "cached_at": "2025-10-08T22:38:52.657647"
+  },
+  "HEXA-B_SE": {
+    "ticker": "HEXA-B",
+    "name": "Hexagon AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "HEXA-B.ST",
+    "cached_at": "2025-10-08T22:38:52.989986"
+  },
+  "SAND_SE": {
+    "ticker": "SAND",
+    "name": "Sandvik AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "SAND.ST",
+    "cached_at": "2025-10-08T22:38:53.333175"
+  },
+  "SKF-B_SE": {
+    "ticker": "SKF-B",
+    "name": "AB SKF (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "SKF-B.ST",
+    "cached_at": "2025-10-08T22:38:53.680209"
+  },
+  "ALFA_SE": {
+    "ticker": "ALFA",
+    "name": "Alfa Laval AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "ALFA.ST",
+    "cached_at": "2025-10-08T22:38:54.019266"
+  },
+  "ASSA-B_SE": {
+    "ticker": "ASSA-B",
+    "name": "ASSA ABLOY AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "ASSA-B.ST",
+    "cached_at": "2025-10-08T22:38:54.355637"
+  },
+  "SHB-A_SE": {
+    "ticker": "SHB-A",
+    "name": "Svenska Handelsbanken AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "SHB-A.ST",
+    "cached_at": "2025-10-08T22:38:54.715495"
+  },
+  "NDA-SE_SE": {
+    "ticker": "NDA-SE",
+    "name": "Nordea Bank Abp",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "NDA-SE.ST",
+    "cached_at": "2025-10-08T22:38:55.081257"
+  },
+  "TELIA_SE": {
+    "ticker": "TELIA",
+    "name": "Telia Company AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "TELIA.ST",
+    "cached_at": "2025-10-08T22:38:55.432553"
+  },
+  "SINCH_SE": {
+    "ticker": "SINCH",
+    "name": "Sinch AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "SINCH.ST",
+    "cached_at": "2025-10-08T22:38:55.764674"
+  },
+  "ESSITY-B_SE": {
+    "ticker": "ESSITY-B",
+    "name": "Essity AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "ESSITY-B.ST",
+    "cached_at": "2025-10-08T22:38:56.118111"
+  },
+  "ELUX-B_SE": {
+    "ticker": "ELUX-B",
+    "name": "AB Electrolux (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "ELUX-B.ST",
+    "cached_at": "2025-10-08T22:38:56.475511"
+  },
+  "GETI-B_SE": {
+    "ticker": "GETI-B",
+    "name": "Getinge AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "GETI-B.ST",
+    "cached_at": "2025-10-08T22:38:56.817864"
+  },
+  "SKA-B_SE": {
+    "ticker": "SKA-B",
+    "name": "Skanska AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "SKA-B.ST",
+    "cached_at": "2025-10-08T22:38:57.155581"
+  },
+  "BOL_SE": {
+    "ticker": "BOL",
+    "name": "Boliden AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "BOL.ST",
+    "cached_at": "2025-10-08T22:38:57.675718"
+  },
+  "SSAB-A_SE": {
+    "ticker": "SSAB-A",
+    "name": "SSAB AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "SSAB-A.ST",
+    "cached_at": "2025-10-08T22:38:58.012324"
+  },
+  "SSAB-B_SE": {
+    "ticker": "SSAB-B",
+    "name": "SSAB AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "SSAB-B.ST",
+    "cached_at": "2025-10-08T22:38:58.344223"
+  },
+  "FABG_SE": {
+    "ticker": "FABG",
+    "name": "Fabege AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "FABG.ST",
+    "cached_at": "2025-10-08T22:38:58.676016"
+  },
+  "SBB-B_SE": {
+    "ticker": "SBB-B",
+    "name": "Samhällsbyggnadsbolaget i Norden AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "SBB-B.ST",
+    "cached_at": "2025-10-08T22:38:59.027388"
+  },
+  "CAST_SE": {
+    "ticker": "CAST",
+    "name": "Castellum AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "CAST.ST",
+    "cached_at": "2025-10-08T22:38:59.371691"
+  },
+  "WIHL_SE": {
+    "ticker": "WIHL",
+    "name": "Wihlborgs Fastigheter AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "WIHL.ST",
+    "cached_at": "2025-10-08T22:38:59.707889"
+  },
+  "ICA_SE": {
+    "ticker": "ICA",
+    "name": "ICA",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "ICA.ST",
+    "cached_at": "2025-10-08T22:39:00.046714"
+  },
+  "AXFO_SE": {
+    "ticker": "AXFO",
+    "name": "Axfood AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "AXFO.ST",
+    "cached_at": "2025-10-08T22:39:00.398995"
+  },
+  "SWMA_SE": {
+    "ticker": "SWMA",
+    "name": "SWMA",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "SWMA.ST",
+    "cached_at": "2025-10-08T22:39:00.725411"
+  },
+  "EVO_SE": {
+    "ticker": "EVO",
+    "name": "Evolution AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "EVO.ST",
+    "cached_at": "2025-10-08T22:39:00.998276"
+  },
+  "KINV-B_SE": {
+    "ticker": "KINV-B",
+    "name": "Kinnevik AB",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "KINV-B.ST",
+    "cached_at": "2025-10-08T22:39:01.339973"
+  },
+  "MTG-B_SE": {
+    "ticker": "MTG-B",
+    "name": "Modern Times Group MTG AB",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "MTG-B.ST",
+    "cached_at": "2025-10-08T22:39:01.685129"
+  },
+  "TEL2-B_SE": {
+    "ticker": "TEL2-B",
+    "name": "Tele2 AB (publ)",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "TEL2-B.ST",
+    "cached_at": "2025-10-08T22:39:02.034727"
+  },
+  "LUND_SE": {
+    "ticker": "LUND",
+    "name": "LUND",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "LUND.ST",
+    "cached_at": "2025-10-08T22:39:02.659362"
+  },
+  "EQNR_SE": {
+    "ticker": "EQNR",
+    "name": "EQNR.ST,0P0000EI4W,712",
+    "market": "SE",
+    "exchange": "Stockholm",
+    "symbol": "EQNR.ST",
+    "cached_at": "2025-10-08T22:39:03.031456"
+  }
+}

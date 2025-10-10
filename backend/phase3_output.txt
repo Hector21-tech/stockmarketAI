@@ -1,0 +1,339 @@
+================================================================================
+PHASE 3: CONFIDENCE SYSTEM BACKTEST
+================================================================================
+
+Testing MarketMate Confidence-Based Position Sizing
+Period: 2024-01-01 to 2025-01-01
+Mode: Conservative (with confidence adjustment)
+
+================================================================================
+
+================================================================================
+Testing: VOLVO-B
+================================================================================
+
+Running backtest for VOLVO-B (SE)
+Period: 2024-01-01 to 2025-01-01
+Mode: conservative, Capital: 100,000 SEK
+
+[2024-01-02] ENTRY: 108 shares @ 230.20 SEK (Score: 3, Confidence: 45.0% [QUARTER])
+[2024-01-04] EXIT (STOP_LOSS): 108 shares @ 220.82 SEK, P/L: -1072.20 SEK (-4.3%)
+[2024-01-04] ENTRY: 111 shares @ 221.26 SEK (Score: 3, Confidence: 45.0% [QUARTER])
+[2024-02-08] EXIT (TARGET_1): 37 shares @ 230.31 SEK, P/L: +313.45 SEK (+3.8%)
+[2024-02-19] EXIT (TARGET_2): 37 shares @ 239.09 SEK, P/L: +637.63 SEK (+7.8%)
+[2024-03-01] EXIT (TARGET_3): 37 shares @ 255.95 SEK, P/L: +1259.91 SEK (+15.4%)
+[2024-03-01] ENTRY: 196 shares @ 256.47 SEK (Score: 4, Confidence: 55.0% [HALF])
+[2024-03-12] EXIT (TARGET_1): 65 shares @ 267.17 SEK, P/L: +651.99 SEK (+3.9%)
+[2024-03-22] EXIT (TARGET_2): 65 shares @ 278.02 SEK, P/L: +1355.99 SEK (+8.1%)
+[2024-06-14] EXIT (STOP_LOSS): 66 shares @ 246.66 SEK, P/L: -688.10 SEK (-4.1%)
+[2024-06-14] ENTRY: 103 shares @ 247.15 SEK (Score: 2, Confidence: 35.0% [QUARTER])
+[2024-07-12] EXIT (TARGET_1): 34 shares @ 258.17 SEK, P/L: +352.59 SEK (+4.2%)
+[2024-07-18] EXIT (TARGET_2): 34 shares @ 268.74 SEK, P/L: +711.20 SEK (+8.5%)
+[2024-08-05] EXIT (STOP_LOSS): 35 shares @ 235.62 SEK, P/L: -424.36 SEK (-4.9%)
+[2024-08-05] ENTRY: 108 shares @ 236.09 SEK (Score: 2, Confidence: 35.0% [QUARTER])
+[2024-08-15] EXIT (TARGET_1): 36 shares @ 246.66 SEK, P/L: +358.32 SEK (+4.2%)
+[2024-08-30] EXIT (TARGET_2): 36 shares @ 255.08 SEK, P/L: +660.74 SEK (+7.8%)
+[2024-11-07] EXIT (TARGET_3): 36 shares @ 272.95 SEK, P/L: +1302.53 SEK (+15.3%)
+[2024-11-07] ENTRY: 191 shares @ 273.50 SEK (Score: 4, Confidence: 55.0% [HALF])
+[2024-11-08] EXIT (STOP_LOSS): 191 shares @ 265.37 SEK, P/L: -1678.76 SEK (-3.2%)
+[2024-11-08] ENTRY: 193 shares @ 265.90 SEK (Score: 4, Confidence: 55.0% [HALF])
+[2024-11-13] EXIT (STOP_LOSS): 193 shares @ 256.11 SEK, P/L: -2014.00 SEK (-3.9%)
+[2024-11-13] SKIPPED: Confidence too low (25.0%), Risk: 
+[2024-11-15] ENTRY: 98 shares @ 255.59 SEK (Score: 3, Confidence: 45.0% [QUARTER])
+[2024-11-20] EXIT (STOP_LOSS): 98 shares @ 247.41 SEK, P/L: -862.61 SEK (-3.4%)
+[2024-11-21] ENTRY: 98 shares @ 252.59 SEK (Score: 2, Confidence: 35.0% [QUARTER])
+[2024-12-04] EXIT (TARGET_1): 32 shares @ 266.68 SEK, P/L: +429.63 SEK (+5.3%)
+[2025-01-01] EXIT (END_OF_BACKTEST): 66 shares @ 251.34 SEK, P/L: -124.19 SEK (-0.7%)
+
+[RESULTS FOR VOLVO-B]
+--------------------------------------------------------------------------------
+Total Return: +0.41%
+CAGR: 0.41%
+Trades: 18
+Win Rate: 61.1%
+Sharpe Ratio: 1.96
+Max Drawdown: 4.91%
+
+[CONFIDENCE STATISTICS]
+Average Confidence: 43.3%
+Full Positions (100%): 0 trades
+Half Positions (50%): 5 trades
+Quarter Positions (25%): 13 trades
+
+[TRADE BREAKDOWN]
+Winning Trades: 11 (61.1%)
+  Avg Win: 7.67%
+Losing Trades: 7 (38.9%)
+  Avg Loss: -3.52%
+
+================================================================================
+Testing: ABB
+================================================================================
+
+Running backtest for ABB (SE)
+Period: 2024-01-01 to 2025-01-01
+Mode: conservative, Capital: 100,000 SEK
+
+[2024-01-04] ENTRY: 57 shares @ 437.24 SEK (Score: 3, Confidence: 45.0% [QUARTER])
+[2024-01-19] EXIT (STOP_LOSS): 57 shares @ 422.13 SEK, P/L: -921.46 SEK (-3.7%)
+[2024-01-19] ENTRY: 58 shares @ 422.98 SEK (Score: 3, Confidence: 45.0% [QUARTER])
+[2024-01-26] EXIT (TARGET_1): 19 shares @ 441.85 SEK, P/L: +337.50 SEK (+4.2%)
+[2024-02-14] EXIT (TARGET_2): 19 shares @ 461.06 SEK, P/L: +701.67 SEK (+8.7%)
+[2024-03-13] EXIT (TARGET_3): 20 shares @ 487.94 SEK, P/L: +1274.88 SEK (+15.1%)
+[2024-03-13] ENTRY: 206 shares @ 488.92 SEK (Score: 6, Confidence: 75.0%)
+[2024-04-18] EXIT (TARGET_2): 68 shares @ 530.57 SEK, P/L: +2742.36 SEK (+8.2%)
+[2024-04-19] EXIT (TARGET_2): 68 shares @ 534.36 SEK, P/L: +2999.42 SEK (+9.0%)
+[2024-05-13] EXIT (TARGET_3): 70 shares @ 567.87 SEK, P/L: +5427.48 SEK (+15.9%)
+[2024-05-13] ENTRY: 98 shares @ 569.01 SEK (Score: 4, Confidence: 55.0% [HALF])
+[2024-06-12] EXIT (TARGET_1): 32 shares @ 594.40 SEK, P/L: +764.99 SEK (+4.2%)
+[2024-08-02] EXIT (STOP_LOSS): 66 shares @ 546.33 SEK, P/L: -1586.96 SEK (-4.2%)
+[2024-08-02] ENTRY: 50 shares @ 547.43 SEK (Score: 2, Confidence: 35.0% [QUARTER])
+[2024-08-16] EXIT (TARGET_1): 16 shares @ 570.27 SEK, P/L: +342.66 SEK (+3.9%)
+[2024-09-25] EXIT (TARGET_2): 16 shares @ 593.21 SEK, P/L: +708.76 SEK (+8.1%)
+[2024-12-02] EXIT (TARGET_3): 18 shares @ 631.10 SEK, P/L: +1477.81 SEK (+15.0%)
+[2024-12-02] ENTRY: 179 shares @ 632.37 SEK (Score: 6, Confidence: 75.0%)
+[2024-12-19] EXIT (STOP_LOSS): 179 shares @ 596.60 SEK, P/L: -6669.93 SEK (-5.9%)
+[2024-12-19] ENTRY: 44 shares @ 597.79 SEK (Score: 3, Confidence: 45.0% [QUARTER])
+[2025-01-01] EXIT (END_OF_BACKTEST): 44 shares @ 593.80 SEK, P/L: -240.74 SEK (-0.9%)
+
+[RESULTS FOR ABB]
+--------------------------------------------------------------------------------
+Total Return: +6.43%
+CAGR: 6.41%
+Trades: 14
+Win Rate: 71.4%
+Sharpe Ratio: 3.37
+Max Drawdown: 8.04%
+
+[CONFIDENCE STATISTICS]
+Average Confidence: 52.9%
+Full Positions (100%): 4 trades
+Half Positions (50%): 2 trades
+Quarter Positions (25%): 8 trades
+
+[TRADE BREAKDOWN]
+Winning Trades: 10 (71.4%)
+  Avg Win: 9.23%
+Losing Trades: 4 (28.6%)
+  Avg Loss: -3.68%
+
+================================================================================
+Testing: ERIC-B
+================================================================================
+
+Running backtest for ERIC-B (SE)
+Period: 2024-01-01 to 2025-01-01
+Mode: conservative, Capital: 100,000 SEK
+
+[2024-01-08] ENTRY: 428 shares @ 58.22 SEK (Score: 2, Confidence: 35.0% [QUARTER])
+[2024-01-22] EXIT (STOP_LOSS): 428 shares @ 56.68 SEK, P/L: -720.15 SEK (-2.9%)
+[2024-01-22] ENTRY: 435 shares @ 56.79 SEK (Score: 3, Confidence: 45.0% [QUARTER])
+[2024-01-30] EXIT (STOP_LOSS): 435 shares @ 54.73 SEK, P/L: -957.93 SEK (-3.9%)
+[2024-01-30] ENTRY: 446 shares @ 54.84 SEK (Score: 3, Confidence: 45.0% [QUARTER])
+[2024-01-31] EXIT (STOP_LOSS): 446 shares @ 53.40 SEK, P/L: -698.38 SEK (-2.9%)
+[2024-01-31] ENTRY: 454 shares @ 53.51 SEK (Score: 2, Confidence: 35.0% [QUARTER])
+[2024-02-07] EXIT (STOP_LOSS): 454 shares @ 51.59 SEK, P/L: -930.24 SEK (-3.8%)
+[2024-02-09] ENTRY: 453 shares @ 52.99 SEK (Score: 3, Confidence: 45.0% [QUARTER])
+[2024-02-13] EXIT (STOP_LOSS): 453 shares @ 51.37 SEK, P/L: -793.37 SEK (-3.3%)
+[2024-02-27] ENTRY: 454 shares @ 52.46 SEK (Score: 3, Confidence: 45.0% [QUARTER])
+[2024-03-15] EXIT (TARGET_1): 151 shares @ 54.90 SEK, P/L: +347.57 SEK (+4.4%)
+[2024-04-15] EXIT (STOP_LOSS): 303 shares @ 50.76 SEK, P/L: -555.44 SEK (-3.5%)
+[2024-04-22] ENTRY: 438 shares @ 54.27 SEK (Score: 3, Confidence: 45.0% [QUARTER])
+[2024-05-14] EXIT (TARGET_2): 146 shares @ 58.63 SEK, P/L: +615.32 SEK (+7.8%)
+[2024-05-20] EXIT (TARGET_2): 146 shares @ 58.71 SEK, P/L: +626.36 SEK (+7.9%)
+[2024-06-07] EXIT (TARGET_3): 146 shares @ 62.69 SEK, P/L: +1205.57 SEK (+15.2%)
+[2024-06-13] ENTRY: 413 shares @ 59.00 SEK (Score: 3, Confidence: 45.0% [QUARTER])
+[2024-06-24] EXIT (TARGET_1): 137 shares @ 61.49 SEK, P/L: +320.85 SEK (+4.0%)
+[2024-07-08] EXIT (TARGET_2): 137 shares @ 64.30 SEK, P/L: +703.89 SEK (+8.7%)
+[2024-07-22] EXIT (TARGET_3): 139 shares @ 67.90 SEK, P/L: +1213.09 SEK (+14.8%)
+[2024-07-25] ENTRY: 737 shares @ 67.56 SEK (Score: 4, Confidence: 55.0% [HALF])
+[2024-08-05] EXIT (STOP_LOSS): 737 shares @ 65.38 SEK, P/L: -1727.39 SEK (-3.5%)
+[2024-08-05] ENTRY: 373 shares @ 65.51 SEK (Score: 3, Confidence: 45.0% [QUARTER])
+[2024-08-15] EXIT (TARGET_1): 124 shares @ 69.47 SEK, P/L: +469.49 SEK (+5.8%)
+[2024-08-23] EXIT (TARGET_2): 124 shares @ 71.13 SEK, P/L: +675.64 SEK (+8.3%)
+[2024-10-14] EXIT (TARGET_3): 125 shares @ 75.49 SEK, P/L: +1224.55 SEK (+15.0%)
+[2024-10-15] ENTRY: 597 shares @ 83.80 SEK (Score: 4, Confidence: 55.0% [HALF])
+[2024-10-28] EXIT (TARGET_1): 199 shares @ 87.73 SEK, P/L: +740.17 SEK (+4.4%)
+[2025-01-01] EXIT (END_OF_BACKTEST): 398 shares @ 86.64 SEK, P/L: +1044.10 SEK (+3.1%)
+
+[RESULTS FOR ERIC-B]
+--------------------------------------------------------------------------------
+Total Return: +2.01%
+CAGR: 2.00%
+Trades: 19
+Win Rate: 63.2%
+Sharpe Ratio: 2.21
+Max Drawdown: 5.72%
+
+[CONFIDENCE STATISTICS]
+Average Confidence: 45.5%
+Full Positions (100%): 0 trades
+Half Positions (50%): 3 trades
+Quarter Positions (25%): 16 trades
+
+[TRADE BREAKDOWN]
+Winning Trades: 12 (63.2%)
+  Avg Win: 8.28%
+Losing Trades: 7 (36.8%)
+  Avg Loss: -3.39%
+
+================================================================================
+Testing: HM-B
+================================================================================
+
+Running backtest for HM-B (SE)
+Period: 2024-01-01 to 2025-01-01
+Mode: conservative, Capital: 100,000 SEK
+
+[2024-01-03] ENTRY: 156 shares @ 158.89 SEK (Score: 3, Confidence: 45.0% [QUARTER])
+[2024-01-17] EXIT (STOP_LOSS): 156 shares @ 150.67 SEK, P/L: -1341.19 SEK (-5.4%)
+[2024-01-17] ENTRY: 162 shares @ 150.97 SEK (Score: 2, Confidence: 35.0% [QUARTER])
+[2024-01-30] EXIT (TARGET_1): 54 shares @ 157.60 SEK, P/L: +336.62 SEK (+4.1%)
+[2024-01-31] EXIT (STOP_LOSS): 108 shares @ 138.10 SEK, P/L: -1427.05 SEK (-8.8%)
+[2024-01-31] ENTRY: 175 shares @ 138.38 SEK (Score: 2, Confidence: 35.0% [QUARTER])
+[2024-02-02] EXIT (STOP_LOSS): 175 shares @ 134.15 SEK, P/L: -798.61 SEK (-3.3%)
+[2024-02-02] ENTRY: 179 shares @ 134.42 SEK (Score: 2, Confidence: 35.0% [QUARTER])
+[2024-02-05] EXIT (STOP_LOSS): 179 shares @ 130.80 SEK, P/L: -706.67 SEK (-2.9%)
+[2024-02-05] ENTRY: 182 shares @ 131.06 SEK (Score: 2, Confidence: 35.0% [QUARTER])
+[2024-03-13] EXIT (TARGET_1): 60 shares @ 137.30 SEK, P/L: +353.61 SEK (+4.5%)
+[2024-03-21] EXIT (TARGET_2): 60 shares @ 142.99 SEK, P/L: +694.36 SEK (+8.8%)
+[2024-03-27] EXIT (TARGET_3): 62 shares @ 166.44 SEK, P/L: +2167.62 SEK (+26.7%)
+[2024-03-27] ENTRY: 296 shares @ 166.77 SEK (Score: 4, Confidence: 55.0% [HALF])
+[2024-04-02] EXIT (STOP_LOSS): 296 shares @ 155.91 SEK, P/L: -3329.46 SEK (-6.7%)
+[2024-04-02] ENTRY: 304 shares @ 156.22 SEK (Score: 4, Confidence: 55.0% [HALF])
+[2024-04-22] EXIT (TARGET_1): 101 shares @ 163.36 SEK, P/L: +679.11 SEK (+4.3%)
+[2024-04-23] EXIT (TARGET_2): 101 shares @ 170.19 SEK, P/L: +1367.80 SEK (+8.7%)
+[2024-05-21] EXIT (TARGET_3): 102 shares @ 179.54 SEK, P/L: +2332.41 SEK (+14.6%)
+[2024-05-21] ENTRY: 276 shares @ 179.90 SEK (Score: 4, Confidence: 55.0% [HALF])
+[2024-05-29] EXIT (STOP_LOSS): 276 shares @ 174.58 SEK, P/L: -1589.55 SEK (-3.2%)
+[2024-05-29] ENTRY: 139 shares @ 174.93 SEK (Score: 3, Confidence: 45.0% [QUARTER])
+[2024-06-18] EXIT (TARGET_1): 46 shares @ 183.17 SEK, P/L: +358.02 SEK (+4.4%)
+[2024-06-27] EXIT (STOP_LOSS): 93 shares @ 161.69 SEK, P/L: -1268.45 SEK (-7.8%)
+[2024-06-27] ENTRY: 149 shares @ 162.01 SEK (Score: 3, Confidence: 45.0% [QUARTER])
+[2024-07-02] EXIT (STOP_LOSS): 149 shares @ 157.30 SEK, P/L: -761.03 SEK (-3.2%)
+[2024-07-02] ENTRY: 152 shares @ 157.61 SEK (Score: 2, Confidence: 35.0% [QUARTER])
+[2024-07-12] EXIT (TARGET_1): 50 shares @ 166.37 SEK, P/L: +416.84 SEK (+5.3%)
+[2024-08-02] EXIT (STOP_LOSS): 102 shares @ 153.15 SEK, P/L: -494.68 SEK (-3.1%)
+[2024-08-02] ENTRY: 156 shares @ 153.45 SEK (Score: 2, Confidence: 35.0% [QUARTER])
+[2024-08-13] EXIT (STOP_LOSS): 156 shares @ 149.38 SEK, P/L: -694.24 SEK (-2.9%)
+[2024-08-13] ENTRY: 158 shares @ 149.68 SEK (Score: 2, Confidence: 35.0% [QUARTER])
+[2024-08-23] EXIT (TARGET_1): 52 shares @ 158.59 SEK, P/L: +442.79 SEK (+5.7%)
+[2024-09-16] EXIT (TARGET_2): 52 shares @ 162.84 SEK, P/L: +663.11 SEK (+8.5%)
+[2024-09-23] EXIT (TARGET_3): 54 shares @ 175.58 SEK, P/L: +1374.98 SEK (+17.0%)
+[2024-09-23] ENTRY: 277 shares @ 175.93 SEK (Score: 4, Confidence: 55.0% [HALF])
+[2024-09-26] EXIT (STOP_LOSS): 277 shares @ 165.13 SEK, P/L: -3106.82 SEK (-6.4%)
+[2024-09-26] ENTRY: 142 shares @ 165.46 SEK (Score: 3, Confidence: 45.0% [QUARTER])
+[2024-10-29] EXIT (STOP_LOSS): 142 shares @ 159.16 SEK, P/L: -950.55 SEK (-4.0%)
+[2024-10-29] ENTRY: 146 shares @ 159.48 SEK (Score: 3, Confidence: 45.0% [QUARTER])
+[2024-10-31] EXIT (STOP_LOSS): 146 shares @ 151.05 SEK, P/L: -1286.17 SEK (-5.5%)
+[2024-10-31] ENTRY: 151 shares @ 151.35 SEK (Score: 2, Confidence: 35.0% [QUARTER])
+[2024-11-29] EXIT (STOP_LOSS): 151 shares @ 147.35 SEK, P/L: -660.21 SEK (-2.9%)
+[2024-11-29] ENTRY: 154 shares @ 147.64 SEK (Score: 3, Confidence: 45.0% [QUARTER])
+[2024-12-03] EXIT (TARGET_1): 51 shares @ 154.41 SEK, P/L: +325.48 SEK (+4.3%)
+[2024-12-10] EXIT (TARGET_2): 51 shares @ 159.67 SEK, P/L: +593.10 SEK (+7.9%)
+[2025-01-01] EXIT (END_OF_BACKTEST): 52 shares @ 145.25 SEK, P/L: -143.14 SEK (-1.9%)
+
+[RESULTS FOR HM-B]
+--------------------------------------------------------------------------------
+Total Return: -7.77%
+CAGR: -7.76%
+Trades: 29
+Win Rate: 48.3%
+Sharpe Ratio: 0.71
+Max Drawdown: 8.42%
+
+[CONFIDENCE STATISTICS]
+Average Confidence: 42.2%
+Full Positions (100%): 0 trades
+Half Positions (50%): 6 trades
+Quarter Positions (25%): 23 trades
+
+[TRADE BREAKDOWN]
+Winning Trades: 14 (48.3%)
+  Avg Win: 8.92%
+Losing Trades: 15 (51.7%)
+  Avg Loss: -4.53%
+
+================================================================================
+Testing: SAND
+================================================================================
+
+Running backtest for SAND (SE)
+Period: 2024-01-01 to 2025-01-01
+Mode: conservative, Capital: 100,000 SEK
+
+[2024-01-08] ENTRY: 122 shares @ 202.89 SEK (Score: 3, Confidence: 45.0% [QUARTER])
+[2024-01-17] EXIT (STOP_LOSS): 122 shares @ 195.00 SEK, P/L: -1021.71 SEK (-4.1%)
+[2024-01-17] ENTRY: 126 shares @ 195.39 SEK (Score: 2, Confidence: 35.0% [QUARTER])
+[2024-01-25] EXIT (TARGET_1): 42 shares @ 208.35 SEK, P/L: +522.58 SEK (+6.4%)
+[2024-02-16] EXIT (TARGET_2): 42 shares @ 212.24 SEK, P/L: +685.25 SEK (+8.4%)
+[2024-03-12] EXIT (TARGET_3): 42 shares @ 225.21 SEK, P/L: +1228.83 SEK (+15.0%)
+[2024-03-12] ENTRY: 223 shares @ 225.66 SEK (Score: 4, Confidence: 55.0% [HALF])
+[2024-04-22] EXIT (STOP_LOSS): 223 shares @ 214.60 SEK, P/L: -2585.56 SEK (-5.1%)
+[2024-04-22] ENTRY: 114 shares @ 215.03 SEK (Score: 2, Confidence: 35.0% [QUARTER])
+[2024-05-08] EXIT (TARGET_1): 38 shares @ 226.06 SEK, P/L: +397.42 SEK (+4.9%)
+[2024-05-21] EXIT (TARGET_2): 38 shares @ 232.95 SEK, P/L: +658.64 SEK (+8.1%)
+[2024-06-14] EXIT (STOP_LOSS): 38 shares @ 209.36 SEK, P/L: -235.39 SEK (-2.9%)
+[2024-06-14] ENTRY: 118 shares @ 209.78 SEK (Score: 2, Confidence: 35.0% [QUARTER])
+[2024-07-09] EXIT (STOP_LOSS): 118 shares @ 203.54 SEK, P/L: -796.70 SEK (-3.2%)
+[2024-07-09] ENTRY: 120 shares @ 203.95 SEK (Score: 3, Confidence: 45.0% [QUARTER])
+[2024-07-12] EXIT (TARGET_1): 40 shares @ 212.86 SEK, P/L: +335.13 SEK (+4.1%)
+[2024-08-05] EXIT (STOP_LOSS): 80 shares @ 196.26 SEK, P/L: -654.22 SEK (-4.0%)
+[2024-08-05] ENTRY: 124 shares @ 196.65 SEK (Score: 2, Confidence: 35.0% [QUARTER])
+[2024-08-19] EXIT (TARGET_1): 41 shares @ 206.94 SEK, P/L: +400.43 SEK (+5.0%)
+[2024-09-26] EXIT (TARGET_2): 41 shares @ 220.04 SEK, P/L: +936.32 SEK (+11.6%)
+[2025-01-01] EXIT (END_OF_BACKTEST): 42 shares @ 192.47 SEK, P/L: -195.70 SEK (-2.4%)
+
+[RESULTS FOR SAND]
+--------------------------------------------------------------------------------
+Total Return: -0.82%
+CAGR: -0.82%
+Trades: 14
+Win Rate: 57.1%
+Sharpe Ratio: 1.99
+Max Drawdown: 4.87%
+
+[CONFIDENCE STATISTICS]
+Average Confidence: 38.6%
+Full Positions (100%): 0 trades
+Half Positions (50%): 1 trades
+Quarter Positions (25%): 13 trades
+
+[TRADE BREAKDOWN]
+Winning Trades: 8 (57.1%)
+  Avg Win: 7.91%
+Losing Trades: 6 (42.9%)
+  Avg Loss: -3.62%
+
+================================================================================
+PHASE 3 SUMMARY - CONFIDENCE SYSTEM
+================================================================================
+
+[OVERALL PERFORMANCE]
+Average Return: +0.05%
+Average Win Rate: 60.2%
+Average Sharpe: 2.05
+Average Confidence: 44.5%
+
+[POSITION SIZE DISTRIBUTION]
+Total Trades: 94
+Full Positions: 4 (4.3%)
+Half Positions: 17 (18.1%)
+Quarter Positions: 73 (77.7%)
+
+[BEST PERFORMER]
+ABB: +6.43% (Win Rate: 71.4%)
+
+[WORST PERFORMER]
+HM-B: -7.77% (Win Rate: 48.3%)
+
+[SUCCESS] Results saved to: phase3_confidence_results.json
+
+[COMPARISON TO BASELINE]
+Baseline (Conservative): +1.38%
+Phase 3 (w/ Confidence): +0.05%
+Improvement: -1.33% (-96.4%)
+
+[WARNING] Performance declined. Need further optimization.
+
+================================================================================

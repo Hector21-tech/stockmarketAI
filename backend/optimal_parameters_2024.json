@@ -1,0 +1,20 @@
+{
+  "timestamp": "2025-10-09T19:52:18.894019",
+  "target_metric": "sharpe",
+  "config": {
+    "stop_loss_buffer": 0.03,
+    "target_multiplier": 1.8,
+    "buy_threshold": 4.0,
+    "tech_weight": 0.85,
+    "macro_weight": 0.15,
+    "ai_weight": 0.0
+  },
+  "performance": {
+    "avg_return": 1.5339683172000593,
+    "avg_sharpe": 3.0364858554614913,
+    "avg_win_rate": 54.35966810966811,
+    "avg_profit_factor": 3.2291724890390787,
+    "avg_drawdown": 16.587477953320807,
+    "total_trades": 104
+  }
+}

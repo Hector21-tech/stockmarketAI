@@ -6,6 +6,7 @@ Scores all OMX30 stocks daily for percentile-based position sizing
 from typing import Dict, List, Tuple
 from datetime import datetime, timedelta
 import pandas as pd
+import time
 from stock_data import StockDataFetcher
 from technical_analysis import TechnicalAnalyzer
 from macro_data import MacroDataFetcher
@@ -98,6 +99,9 @@ class MarketScanner:
                 print(f"  Error scoring {ticker}: {e}")
                 failed += 1
                 continue
+
+            # Rate limiting: 1 second delay between stocks to avoid Yahoo Finance throttling
+            time.sleep(1.0)
 
         print(f"[Market Scanner] Complete: {successful} scored, {failed} failed")
 

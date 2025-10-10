@@ -1,0 +1,109 @@
+{
+  "timestamp": "2025-10-09T19:59:31.970133",
+  "enhancements": [
+    "volume_scoring",
+    "adx_scoring"
+  ],
+  "results": [
+    {
+      "ticker": "ERIC-B",
+      "mode": "conservative",
+      "total_return": 7.36757448687518,
+      "win_rate": 63.1578947368421,
+      "total_trades": 19,
+      "sharpe_ratio": 2.207177041236655,
+      "max_drawdown": 21.228580494813222,
+      "profit_factor": 2.443475499584714
+    },
+    {
+      "ticker": "ERIC-B",
+      "mode": "aggressive",
+      "total_return": 6.567152685809502,
+      "win_rate": 47.05882352941176,
+      "total_trades": 17,
+      "sharpe_ratio": 1.8402911342963462,
+      "max_drawdown": 23.505495001141085,
+      "profit_factor": 5.057333409906368
+    },
+    {
+      "ticker": "ABB",
+      "mode": "conservative",
+      "total_return": 15.045156319006637,
+      "win_rate": 71.42857142857143,
+      "total_trades": 14,
+      "sharpe_ratio": 3.368891901018111,
+      "max_drawdown": 9.511485008338383,
+      "profit_factor": 2.5072111850192904
+    },
+    {
+      "ticker": "ABB",
+      "mode": "aggressive",
+      "total_return": 9.76978780324696,
+      "win_rate": 60.0,
+      "total_trades": 10,
+      "sharpe_ratio": 3.272549738950412,
+      "max_drawdown": 8.592018045313036,
+      "profit_factor": 3.981687294730581
+    },
+    {
+      "ticker": "SAND",
+      "mode": "conservative",
+      "total_return": 1.540204402170566,
+      "win_rate": 57.14285714285714,
+      "total_trades": 14,
+      "sharpe_ratio": 1.9914730461508372,
+      "max_drawdown": 10.945567518426406,
+      "profit_factor": 2.1834913365480357
+    },
+    {
+      "ticker": "SAND",
+      "mode": "aggressive",
+      "total_return": 5.774712327462927,
+      "win_rate": 50.0,
+      "total_trades": 8,
+      "sharpe_ratio": 3.545231969072519,
+      "max_drawdown": 6.143735228206027,
+      "profit_factor": 5.464085278170368
+    },
+    {
+      "ticker": "BOL",
+      "mode": "conservative",
+      "total_return": -6.0059988913136335,
+      "win_rate": 57.57575757575758,
+      "total_trades": 33,
+      "sharpe_ratio": 1.0818135783784475,
+      "max_drawdown": 16.97046510375077,
+      "profit_factor": 1.891414928226849
+    },
+    {
+      "ticker": "BOL",
+      "mode": "aggressive",
+      "total_return": -8.783776035173869,
+      "win_rate": 42.857142857142854,
+      "total_trades": 35,
+      "sharpe_ratio": 0.923817138792371,
+      "max_drawdown": 20.540448438571936,
+      "profit_factor": 3.430908183104765
+    },
+    {
+      "ticker": "EVO",
+      "mode": "conservative",
+      "total_return": -26.85926008166825,
+      "win_rate": 40.74074074074074,
+      "total_trades": 27,
+      "sharpe_ratio": 0.22862479254597703,
+      "max_drawdown": 33.82110700706677,
+      "profit_factor": 1.7376748259077517
+    },
+    {
+      "ticker": "EVO",
+      "mode": "aggressive",
+      "total_return": -26.56604370591481,
+      "win_rate": 34.48275862068966,
+      "total_trades": 29,
+      "sharpe_ratio": 0.45824434281185566,
+      "max_drawdown": 32.14771419765107,
+      "profit_factor": 2.8594277088043447
+    }
+  ]
+}

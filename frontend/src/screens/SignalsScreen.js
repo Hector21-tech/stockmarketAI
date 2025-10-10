@@ -299,6 +299,14 @@ export default function SignalsScreen() {
         description: 'Tidigt inträde för leverage-produkter',
       };
     }
+    if (signalMode === 'ai-hybrid') {
+      return {
+        icon: '🤖',
+        name: 'AI-Hybrid',
+        color: '#10B981',
+        description: 'AI-driven med sentiment + patterns',
+      };
+    }
     return {
       icon: '🛡️',
       name: 'Conservative',

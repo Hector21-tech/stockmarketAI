@@ -344,6 +344,56 @@ class MacroDataFetcher:
             'putCallRatio': self.get_put_call_ratio(),
         }
 
+    def get_sentiment_data_cached(self, vix_data: Optional[Dict]) -> Dict:
+        """
+        Hämtar sentiment-data från cached VIX (undviker duplicerade requests)
+
+        Args:
+            vix_data: Pre-fetched VIX data
+
+        Returns:
+            Dict med fear/greed index och put/call ratio
+        """
+        # Beräkna Fear & Greed från cached VIX
+        fear_greed = None
+        if vix_data:
+            vix_value = vix_data['value']
+            if vix_value < 12:
+                fear_greed = {'value': 85, 'label': 'Extreme Greed', 'emoji': '🤑', 'color': '#16a34a', 'source': 'VIX-based'}
+            elif vix_value < 15:
+                fear_greed = {'value': 70, 'label': 'Greed', 'emoji': '😊', 'color': '#22c55e', 'source': 'VIX-based'}
+            elif vix_value < 20:
+                fear_greed = {'value': 50, 'label': 'Neutral', 'emoji': '😐', 'color': '#94a3b8', 'source': 'VIX-based'}
+            elif vix_value < 30:
+                fear_greed = {'value': 30, 'label': 'Fear', 'emoji': '😰', 'color': '#f59e0b', 'source': 'VIX-based'}
+            else:
+                fear_greed = {'value': 15, 'label': 'Extreme Fear', 'emoji': '😱', 'color': '#ef4444', 'source': 'VIX-based'}
+            fear_greed['timestamp'] = datetime.now().isoformat()
+
+        # Beräkna Put/Call från cached VIX
+        put_call = None
+        if vix_data:
+            vix_value = vix_data['value']
+            estimated_pc = 0.5 + (vix_value / 40)
+            estimated_pc = min(max(estimated_pc, 0.4), 1.5)
+            if estimated_pc < 0.7:
+                interpretation = 'Bullish - Low hedging activity'
+            elif estimated_pc > 1.1:
+                interpretation = 'Bearish - High hedging activity'
+            else:
+                interpretation = 'Neutral - Normal hedging activity'
+            put_call = {
+                'value': estimated_pc,
+                'interpretation': interpretation,
+                'source': 'VIX-based estimation',
+                'timestamp': datetime.now().isoformat(),
+            }
+
+        return {
+            'fearGreed': fear_greed,
+            'putCallRatio': put_call,
+        }
+
     def calculate_correlation(self, ticker1: str, ticker2: str, period: str = '3mo') -> Optional[float]:
         """
         Beräknar korrelation mellan två tickers
@@ -564,22 +614,48 @@ class MacroDataFetcher:
 
     def get_all_macro_data(self) -> Dict:
         """
-        Hämtar all makrodata i en request
+        Hämtar all makrodata i en request med rate limiting
 
         Returns:
             Dict med alla makroindikatorer
         """
+        # Hämta data med delays för att undvika rate limiting
+        m2 = self.get_m2_money_supply()  # No delay, local data
+        fed_funds = self.get_fed_funds_rate()  # No delay, local data
+
+        dxy = self.get_dxy()
+        time.sleep(0.5)  # Rate limiting delay
+
+        vix = self.get_vix()  # Hämta VIX en gång och återanvänd
+        time.sleep(0.5)
+
+        treasury = self.get_treasury_10y()
+        time.sleep(0.5)
+
+        spx_trend = self.get_spx_trend()
+        time.sleep(0.5)
+
+        # Återanvänd cached VIX för regime och sentiment (undvik duplicerade requests)
+        regime = self._calculate_market_regime_cached(vix)
+        sentiment = self.get_sentiment_data_cached(vix)
+
+        # Correlations är dyrt (16 requests), skippa för nu eller använd långsam cache
+        correlations = None  # TODO: Cache correlations för 1 timme
+
+        # Seasonality är också dyrt (5 års data), cacha längre
+        seasonality = self.get_seasonality_data()
+
         return {
-            'm2': self.get_m2_money_supply(),
-            'fedFunds': self.get_fed_funds_rate(),
-            'dxy': self.get_dxy(),
-            'vix': self.get_vix(),
-            'treasury10y': self.get_treasury_10y(),
-            'spx_trend': self.get_spx_trend(),
-            'regime': self._calculate_market_regime(),
-            'sentiment': self.get_sentiment_data(),
-            'correlations': self.get_market_correlations(),
-            'seasonality': self.get_seasonality_data(),
+            'm2': m2,
+            'fedFunds': fed_funds,
+            'dxy': dxy,
+            'vix': vix,
+            'treasury10y': treasury,
+            'spx_trend': spx_trend,
+            'regime': regime,
+            'sentiment': sentiment,
+            'correlations': correlations,
+            'seasonality': seasonality,
         }
 
     def get_usd_sek(self) -> Optional[Dict]:
@@ -725,13 +801,21 @@ class MacroDataFetcher:
         Returns:
             'bullish', 'bearish', eller 'transition'
         """
-        # TODO: Implementera mer sofistikerad regime-detektion
-        # För nu, använd VIX som proxy:
-        # VIX < 15: Bullish
-        # VIX > 25: Bearish
-        # VIX 15-25: Transition
-
         vix_data = self.get_vix()
+        if not vix_data:
+            return 'transition'
+        return self._calculate_market_regime_cached(vix_data)
+
+    def _calculate_market_regime_cached(self, vix_data: Optional[Dict]) -> str:
+        """
+        Beräknar market regime från cached VIX data
+
+        Args:
+            vix_data: Pre-fetched VIX data
+
+        Returns:
+            'bullish', 'bearish', eller 'transition'
+        """
         if not vix_data:
             return 'transition'
 

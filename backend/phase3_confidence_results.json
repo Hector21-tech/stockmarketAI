@@ -1,0 +1,95 @@
+{
+  "test_date": "2025-10-09T21:30:40.471094",
+  "period": "2024-01-01 to 2025-01-01",
+  "mode": "conservative",
+  "stocks_tested": 5,
+  "summary": {
+    "avg_return": 0.049954326546349216,
+    "avg_win_rate": 60.22325929766946,
+    "avg_sharpe": 2.0476842647698463,
+    "avg_confidence": 44.50591997234466,
+    "total_trades": 94,
+    "position_distribution": {
+      "full": 4,
+      "half": 17,
+      "quarter": 73
+    }
+  },
+  "individual_results": [
+    {
+      "ticker": "VOLVO-B",
+      "return": 0.40975555759659615,
+      "cagr": 0.40891418015578385,
+      "trades": 18,
+      "win_rate": 61.111111111111114,
+      "sharpe": 1.9587197161816847,
+      "max_dd": 4.91364194219268,
+      "avg_confidence": 43.333333333333336,
+      "full_positions": 0,
+      "half_positions": 5,
+      "quarter_positions": 13,
+      "winning_trades": 11,
+      "losing_trades": 7
+    },
+    {
+      "ticker": "ABB",
+      "return": 6.426421529552318,
+      "cagr": 6.41283913921642,
+      "trades": 14,
+      "win_rate": 71.42857142857143,
+      "sharpe": 3.3688919010181113,
+      "max_dd": 8.03731466638433,
+      "avg_confidence": 52.857142857142854,
+      "full_positions": 4,
+      "half_positions": 2,
+      "quarter_positions": 8,
+      "winning_trades": 10,
+      "losing_trades": 4
+    },
+    {
+      "ticker": "ERIC-B",
+      "return": 2.007254839631496,
+      "cagr": 2.003100689084003,
+      "trades": 19,
+      "win_rate": 63.1578947368421,
+      "sharpe": 2.2071776048082796,
+      "max_dd": 5.724343990976901,
+      "avg_confidence": 45.526315789473685,
+      "full_positions": 0,
+      "half_positions": 3,
+      "quarter_positions": 16,
+      "winning_trades": 12,
+      "losing_trades": 7
+    },
+    {
+      "ticker": "HM-B",
+      "return": -7.7744364136081865,
+      "cagr": -7.759139907505331,
+      "trades": 29,
+      "win_rate": 48.275862068965516,
+      "sharpe": 0.7121590556903172,
+      "max_dd": 8.415135505871003,
+      "avg_confidence": 42.241379310344826,
+      "full_positions": 0,
+      "half_positions": 6,
+      "quarter_positions": 23,
+      "winning_trades": 14,
+      "losing_trades": 15
+    },
+    {
+      "ticker": "SAND",
+      "return": -0.819223880440477,
+      "cagr": -0.8175520240535916,
+      "trades": 14,
+      "win_rate": 57.14285714285714,
+      "sharpe": 1.9914730461508388,
+      "max_dd": 4.867675572454221,
+      "avg_confidence": 38.57142857142857,
+      "full_positions": 0,
+      "half_positions": 1,
+      "quarter_positions": 13,
+      "winning_trades": 8,
+      "losing_trades": 6
+    }
+  ]
+}
